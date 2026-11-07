@@ -1,127 +1,213 @@
-import { useState } from 'react';
+
+import { useEffect, useMemo, useState } from 'react';
+import { getQuality, getProvenance } from '../../../api/advanced';
+import type {
+  QualityData,
+  ProvenanceData,
+} from '../../../api/types/advanced';
 
 interface PipelineNode {
   id: number;
   label: string;
   name: string;
   icon: string;
-  metricLabel: string;
-  metricValue: string;
   desc: string;
-  techDetails: {
-    runtime: string;
-    throughput: string;
-    rejectionRate: string;
-    memoryFootprint: string;
-    validationStatus: string;
-  };
+  details: string[];
 }
 
 const pipelineNodes: PipelineNode[] = [
   {
     id: 1,
     label: 'L-01',
-    name: 'Ingestion Adapters',
+    name: 'Data Ingestion',
     icon: 'cloud_sync',
-    metricLabel: 'THROUGHPUT',
-    metricValue: '32 MB/s',
-    desc: 'FIRMS NRT CSVs, S3 Polling, REST API hooks with SHA-256 payload pinning.',
-    techDetails: {
-      runtime: 'Python 3.11 BaseAdapter Worker',
-      throughput: '32 MB/s (Compressed Gzip Stream)',
-      rejectionRate: '0.00% (Raw Hash Validated)',
-      memoryFootprint: '64 MB Streaming Buffer',
-      validationStatus: 'SHA-256 Checksum Verified',
-    },
+    desc: 'Satellite observation data enters the processing workflow.',
+    details: [
+      'Input: MODIS and VIIRS observations',
+      'Source: NASA FIRMS products',
+      'Output: Raw observation records',
+    ],
   },
   {
     id: 2,
     label: 'L-02',
-    name: 'Clean & Normalize',
+    name: 'Cleaning & Normalization',
     icon: 'filter_alt',
-    metricLabel: 'QC REJECTION',
-    metricValue: '0.04% dropped',
-    desc: 'Boundary clip [-180, 180], UTC epoch parsing, QA masking, flag deduplication.',
-    techDetails: {
-      runtime: 'Fast NumPy Vectorized Bounds Check',
-      throughput: '1.2M rows/sec',
-      rejectionRate: '0.04% (Out-of-range Lat/Lon)',
-      memoryFootprint: '128 MB In-Memory Chunk',
-      validationStatus: '100% Coordinate Compliance',
-    },
+    desc: 'Observation records are checked and prepared for analysis.',
+    details: [
+      'Coordinate and timestamp validation',
+      'Quality filtering and duplicate handling',
+      'Output: Cleaned observations',
+    ],
   },
   {
     id: 3,
     label: 'L-03',
-    name: 'Harmonization Mesh',
+    name: 'Spatial Harmonization',
     icon: 'hexagon',
-    metricLabel: 'APERTURE',
-    metricValue: 'H3 Res 7',
-    desc: 'Uber H3 Resolution 7 projection, Cell-Day spatial-temporal discretization.',
-    techDetails: {
-      runtime: 'H3 C-Bindings + Spatial Geometry',
-      throughput: '450k cells/sec',
-      rejectionRate: '0.00% (Global Coverage)',
-      memoryFootprint: '94 MB Spatial Index',
-      validationStatus: 'WGS84 Uniform Hex Partition',
-    },
+    desc: 'Satellite observations are represented on a common spatial grid.',
+    details: [
+      'H3 spatial indexing',
+      'Cell and day aggregation',
+      'Output: Harmonized spatial records',
+    ],
   },
   {
     id: 4,
     label: 'L-04',
-    name: 'Statistical Engine',
+    name: 'Statistical Analysis',
     icon: 'tune',
-    metricLabel: 'RESIDUAL R²',
-    metricValue: '0.941',
-    desc: 'M0-M4 regression kernels, cross-sensor FRP scaling, Holdout validation.',
-    techDetails: {
-      runtime: 'SciPy / Statsmodels Estimator',
-      throughput: '18ms fit latency',
-      rejectionRate: '0.00% (Converged)',
-      memoryFootprint: '42 MB Model Weights',
-      validationStatus: 'Leave-One-Year-Out Passed',
-    },
+    desc: 'Cross-sensor comparisons and statistical analysis are performed.',
+    details: [
+      'Sensor comparison',
+      'Activity and uncertainty analysis',
+      'Output: Analytical results',
+    ],
   },
   {
     id: 5,
     label: 'L-05',
-    name: 'Lake & In-Memory',
+    name: 'Data Storage',
     icon: 'database',
-    metricLabel: 'QUERY LATENCY',
-    metricValue: '14.2 ms',
-    desc: 'DuckDB columnar store, partitioned Z-ordered Parquet files on SSD.',
-    techDetails: {
-      runtime: 'DuckDB v1.1 Columnar Engine',
-      throughput: '4.8M rows queried in 14.2ms',
-      rejectionRate: '0.00%',
-      memoryFootprint: '180 MB In-Memory Cache',
-      validationStatus: 'Parquet Snappy Compressed',
-    },
+    desc: 'Processed records are stored for analytical queries.',
+    details: [
+      'DuckDB analytical database',
+      'Parquet-based data storage',
+      'Output: Queryable datasets',
+    ],
   },
   {
     id: 6,
     label: 'L-06',
-    name: 'FastAPI v1 Engine',
+    name: 'API & Analytics',
     icon: 'terminal',
-    metricLabel: 'OPENAPI',
-    metricValue: '/v1/openapi',
-    desc: 'High-throughput REST API, Pydantic type validation, GeoJSON stream serialization.',
-    techDetails: {
-      runtime: 'FastAPI + Uvicorn ASGI Server',
-      throughput: '2,400 req/sec',
-      rejectionRate: '0.00% (Strict Envelope)',
-      memoryFootprint: '38 MB Service Worker',
-      validationStatus: 'Swagger UI Active at /docs',
-    },
+    desc: 'Backend endpoints expose processed results to the frontend.',
+    details: [
+      'FastAPI REST endpoints',
+      'Structured API responses',
+      'Output: Frontend-ready information',
+    ],
   },
 ];
 
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return 'N/A';
+  }
+
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatShare(value: number): string {
+  if (!Number.isFinite(value)) return 'N/A';
+
+  const percentage = value <= 1 ? value * 100 : value;
+
+  return `${percentage.toFixed(1)}%`;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return 'N/A';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString();
+}
+
+function shortenHash(hash: string | null | undefined): string {
+  if (!hash) return 'Not available';
+
+  if (hash.length <= 20) return hash;
+
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
 export default function QualityPage() {
-  const [selectedNodeId, setSelectedNodeId] = useState<number>(3);
-  const selectedNode = pipelineNodes.find((n) => n.id === selectedNodeId) || pipelineNodes[2];
+  const [selectedNodeId, setSelectedNodeId] = useState(3);
+
+  const [quality, setQuality] = useState<QualityData | null>(null);
+  const [provenance, setProvenance] = useState<ProvenanceData | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [dataMode, setDataMode] = useState<'fixture' | 'real' | null>(null);
+  const [isSynthetic, setIsSynthetic] = useState<boolean | null>(null);
+
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const selectedNode =
+    pipelineNodes.find((node) => node.id === selectedNodeId) ??
+    pipelineNodes[2];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadQualityData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [qualityResponse, provenanceResponse] = await Promise.all([
+          getQuality(),
+          getProvenance(),
+        ]);
+
+        if (cancelled) return;
+
+        setQuality(qualityResponse.data);
+        setProvenance(provenanceResponse.data);
+
+        setDataMode(qualityResponse.meta.data_mode);
+        setIsSynthetic(qualityResponse.meta.is_synthetic);
+      } catch (err) {
+        if (cancelled) return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to load quality and provenance information.',
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadQualityData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  const confidenceTotal = useMemo(() => {
+    return (
+      quality?.confidence_distribution.reduce(
+        (total, item) => total + item.count,
+        0,
+      ) ?? 0
+    );
+  }, [quality]);
+
+  const sensorNames = useMemo(() => {
+    return [
+      ...new Set(
+        quality?.confidence_distribution.map(
+          (item) => item.sensor_family,
+        ) ?? [],
+      ),
+    ];
+  }, [quality]);
 
   return (
     <div className="flex flex-col w-full pb-16">
+
       {/* Header */}
       <section className="w-full px-6 py-6 bg-[#0a0e18] border-b border-[#1F2937]">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -130,204 +216,532 @@ export default function QualityPage() {
               <span className="px-2 py-0.5 rounded bg-[#1c1f2a] text-[#7bd0ff] font-caption-mono text-[10px] uppercase tracking-wider font-semibold">
                 SYSTEM ARCHITECTURE &amp; LINEAGE
               </span>
-              <span className="text-[#a08e7a] font-caption-mono text-xs">/</span>
-              <span className="font-caption-mono text-xs text-[#ffc174]">NASA MODIS &amp; VIIRS DATA INTEGRITY</span>
+
+              <span className="text-[#a08e7a] font-caption-mono text-xs">
+                /
+              </span>
+
+              <span className="font-caption-mono text-xs text-[#ffc174]">
+                NASA MODIS &amp; VIIRS DATA INTEGRITY
+              </span>
             </div>
+
             <h1 className="font-headline-lg text-2xl lg:text-3xl font-bold text-[#dfe2f1] tracking-tight">
               Sensor Quality, Confidence &amp; Architectural Provenance
             </h1>
+
             <p className="font-body-md text-xs sm:text-sm text-[#d8c3ad] leading-relaxed">
-              Trace active fire observations from raw NASA FIRMS payloads through cleaning, spatial discretization, statistical calibration, and DuckDB analytics.
+              Examine sensor confidence, observation availability, uncertainty
+              and data lineage across the TerraFlare processing workflow.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1.5 rounded bg-[#171b26] border border-[#262a35] font-caption-mono text-xs text-[#7bd0ff] flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
-              All 6 Pipeline Layers Operational
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1.5 rounded bg-[#171b26] border border-[#262a35] font-caption-mono text-xs text-[#7bd0ff]">
+              {loading
+                ? 'LOADING DATA'
+                : error
+                  ? 'API ERROR'
+                  : isSynthetic
+                    ? 'SYNTHETIC FIXTURE'
+                    : 'REAL DATA'}
             </span>
+
+            {dataMode && (
+              <span className="px-3 py-1.5 rounded bg-[#171b26] border border-[#262a35] font-caption-mono text-xs text-[#ffc174]">
+                {dataMode.toUpperCase()} MODE
+              </span>
+            )}
           </div>
         </div>
       </section>
 
       {/* Main Container */}
       <div className="w-full px-6 py-6 space-y-6">
-        {/* 6-Layer Interactive Pipeline Visualizer */}
+
+        {loading && (
+          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-10 text-center">
+            <p className="font-caption-mono text-sm text-[#7bd0ff] animate-pulse">
+              LOADING QUALITY AND PROVENANCE DATA...
+            </p>
+          </div>
+        )}
+
+        {error && !loading && (
+          <div className="bg-[#1c1f2a] border border-[#ff938c]/40 rounded-lg p-6">
+            <p className="font-caption-mono text-sm font-bold text-[#ff938c]">
+              QUALITY API ERROR
+            </p>
+
+            <p className="text-sm text-[#d8c3ad] mt-2">{error}</p>
+
+            <button
+              type="button"
+              onClick={() => setReloadKey((key) => key + 1)}
+              className="mt-4 px-4 py-2 rounded bg-[#262a35] border border-[#7bd0ff] text-[#7bd0ff] text-xs font-bold"
+            >
+              RETRY REQUEST
+            </button>
+          </div>
+        )}
+
+        {/* Architecture overview */}
         <div className="w-full bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
-          <div className="flex items-center justify-between pb-3 border-b border-[#262a35] mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262a35] mb-4">
             <div>
               <h2 className="font-title-md text-base font-bold text-[#dfe2f1] flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#ffc174] text-lg">schema</span>
-                End-to-End Modular Monolith Pipeline
+                <span className="material-symbols-outlined text-[#ffc174] text-lg">
+                  schema
+                </span>
+                End-to-End Processing Pipeline
               </h2>
+
               <span className="font-caption-mono text-xs text-[#a08e7a]">
-                Click any layer to inspect runtime throughput, memory footprint, and quality controls
+                Select a layer to inspect its role in the processing workflow.
               </span>
             </div>
+
             <span className="font-caption-mono text-xs text-[#ffc174] font-semibold bg-[#0a0e18] px-3 py-1 rounded border border-[#262a35]">
-              ACTIVE NODE: {selectedNode.label}
+              SELECTED: {selectedNode.label}
             </span>
           </div>
 
-          {/* 6 Node Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             {pipelineNodes.map((node) => {
               const isSelected = selectedNodeId === node.id;
+
               return (
                 <button
                   key={node.id}
+                  type="button"
                   onClick={() => setSelectedNodeId(node.id)}
                   className={`text-left p-3.5 rounded border transition-all text-xs flex flex-col justify-between ${
                     isSelected
                       ? 'bg-[#262a35] border-[#ffc174] shadow-md ring-1 ring-[#ffc174]'
                       : 'bg-[#171b26] border-[#262a35] hover:bg-[#262a35]/60'
                   }`}
-                  type="button"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-caption-mono text-[10px] px-1.5 py-0.5 rounded bg-[#0a0e18] text-[#7bd0ff] font-bold">
                         {node.label}
                       </span>
-                      <span className="material-symbols-outlined text-[#7bd0ff] text-base">{node.icon}</span>
+
+                      <span className="material-symbols-outlined text-[#7bd0ff] text-base">
+                        {node.icon}
+                      </span>
                     </div>
-                    <div className="font-title-sm font-bold text-[#dfe2f1] mb-1">{node.name}</div>
-                    <p className="font-body-sm text-[11px] text-[#a08e7a] line-clamp-2">{node.desc}</p>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-[#262a35] flex items-center justify-between text-[10px] font-caption-mono">
-                    <span className="text-[#a08e7a]">{node.metricLabel}</span>
-                    <span className="text-[#ffc174] font-bold">{node.metricValue}</span>
+
+                    <div className="font-title-sm font-bold text-[#dfe2f1] mb-1">
+                      {node.name}
+                    </div>
+
+                    <p className="font-body-sm text-[11px] text-[#a08e7a] line-clamp-3">
+                      {node.desc}
+                    </p>
                   </div>
                 </button>
               );
             })}
           </div>
 
-          {/* Node Detail Telemetry Panel */}
-          <div className="mt-4 p-4 rounded bg-[#0a0e18] border border-[#262a35] grid grid-cols-1 md:grid-cols-5 gap-4 font-caption-mono text-xs">
-            <div>
-              <span className="text-[#a08e7a] block mb-0.5">RUNTIME EXECUTOR:</span>
-              <span className="text-[#dfe2f1] font-bold">{selectedNode.techDetails.runtime}</span>
+          {/* Selected node details */}
+          <div className="mt-4 p-4 rounded bg-[#0a0e18] border border-[#262a35]">
+            <h3 className="font-caption-mono text-xs text-[#ffc174] font-bold mb-3">
+              {selectedNode.label} • {selectedNode.name}
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {selectedNode.details.map((detail) => (
+                <div
+                  key={detail}
+                  className="p-3 rounded bg-[#171b26] border border-[#262a35]"
+                >
+                  <p className="text-xs font-caption-mono text-[#dfe2f1]">
+                    {detail}
+                  </p>
+                </div>
+              ))}
             </div>
-            <div>
-              <span className="text-[#a08e7a] block mb-0.5">PEAK THROUGHPUT:</span>
-              <span className="text-[#ffc174] font-bold">{selectedNode.techDetails.throughput}</span>
-            </div>
-            <div>
-              <span className="text-[#a08e7a] block mb-0.5">REJECTION RATE:</span>
-              <span className="text-[#7bd0ff] font-bold">{selectedNode.techDetails.rejectionRate}</span>
-            </div>
-            <div>
-              <span className="text-[#a08e7a] block mb-0.5">MEMORY BUFFER:</span>
-              <span className="text-[#dfe2f1] font-bold">{selectedNode.techDetails.memoryFootprint}</span>
-            </div>
-            <div>
-              <span className="text-[#a08e7a] block mb-0.5">VALIDATION STATE:</span>
-              <span className="text-[#10B981] font-bold">{selectedNode.techDetails.validationStatus}</span>
-            </div>
+
+            <p className="text-[10px] text-[#a08e7a] font-caption-mono mt-3">
+              ARCHITECTURE OVERVIEW — NOT LIVE PERFORMANCE TELEMETRY
+            </p>
           </div>
         </div>
 
-        {/* Confidence & Provenance Lineage */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Sensor Confidence Distributions */}
-          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">Confidence Class Distribution</h3>
-                <span className="font-caption-mono text-xs text-[#a08e7a]">Native classes mapped to canonical low, nominal, high scale</span>
+        {!loading && !error && quality && (
+          <>
+            {/* Sensor confidence and contribution */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Confidence distribution */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div>
+                    <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
+                      Confidence Class Distribution
+                    </h3>
+
+                    <span className="font-caption-mono text-xs text-[#a08e7a]">
+                      Native confidence classes reported by sensor family
+                    </span>
+                  </div>
+
+                  <span className="px-2 py-0.5 rounded bg-[#0a0e18] text-[#7bd0ff] font-caption-mono text-xs">
+                    {formatNumber(confidenceTotal)} RECORDS
+                  </span>
+                </div>
+
+                {quality.confidence_distribution.length === 0 ? (
+                  <p className="text-xs text-[#a08e7a] py-8 text-center">
+                    No confidence distribution data available.
+                  </p>
+                ) : (
+                  <div className="space-y-5">
+                    {sensorNames.map((sensor) => {
+                      const sensorItems =
+                        quality.confidence_distribution.filter(
+                          (item) => item.sensor_family === sensor,
+                        );
+
+                      const sensorTotal = sensorItems.reduce(
+                        (sum, item) => sum + item.count,
+                        0,
+                      );
+
+                      return (
+                        <div key={sensor}>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[#ffc174] font-caption-mono text-xs font-bold">
+                              {sensor}
+                            </span>
+
+                            <span className="text-[#a08e7a] font-caption-mono text-xs">
+                              {formatNumber(sensorTotal)} observations
+                            </span>
+                          </div>
+
+                          <div className="space-y-3">
+                            {sensorItems.map((item) => {
+                              const percentage =
+                                sensorTotal > 0
+                                  ? (item.count / sensorTotal) * 100
+                                  : 0;
+
+                              return (
+                                <div key={`${sensor}-${item.native_class}`}>
+                                  <div className="flex justify-between text-[#dfe2f1] mb-1 text-xs">
+                                    <span>
+                                      Native class: {item.native_class}
+                                    </span>
+
+                                    <span className="text-[#7bd0ff] font-bold">
+                                      {percentage.toFixed(1)}% (
+                                      {formatNumber(item.count)})
+                                    </span>
+                                  </div>
+
+                                  <div className="w-full bg-[#0a0e18] h-2.5 rounded-full overflow-hidden border border-[#262a35]">
+                                    <div
+                                      className="bg-[#7bd0ff] h-full rounded-full"
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="mt-4 pt-3 border-t border-[#262a35] font-caption-mono text-[11px] text-[#a08e7a]">
+                  Counts are based on the confidence records returned by the
+                  backend. Native classes are not assumed to be directly
+                  equivalent across sensors.
+                </div>
               </div>
-              <span className="px-2 py-0.5 rounded bg-[#0a0e18] text-[#7bd0ff] font-caption-mono text-xs">FIRMS Mappings</span>
+
+              {/* Sensor contribution */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+                <div className="mb-4">
+                  <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
+                    Sensor Contribution
+                  </h3>
+
+                  <span className="font-caption-mono text-xs text-[#a08e7a]">
+                    Reported sensor-family shares across analysis periods
+                  </span>
+                </div>
+
+                {quality.sensor_contribution.length === 0 ? (
+                  <p className="text-xs text-[#a08e7a] py-8 text-center">
+                    No sensor contribution data available.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {quality.sensor_contribution.map((item, index) => (
+                      <div
+                        key={`${item.period}-${item.sensor_family}-${index}`}
+                        className="p-3 rounded bg-[#171b26] border border-[#262a35]"
+                      >
+                        <div className="flex justify-between gap-3 mb-2">
+                          <span className="font-caption-mono text-xs text-[#dfe2f1] font-bold">
+                            {item.sensor_family}
+                          </span>
+
+                          <span className="font-caption-mono text-xs text-[#ffc174]">
+                            {formatShare(item.share)}
+                          </span>
+                        </div>
+
+                        <div className="w-full bg-[#0a0e18] h-2 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#f59e0b] rounded-full"
+                            style={{
+                              width: `${Math.max(
+                                0,
+                                Math.min(
+                                  100,
+                                  item.share <= 1
+                                    ? item.share * 100
+                                    : item.share,
+                                ),
+                              )}%`,
+                            }}
+                          />
+                        </div>
+
+                        <p className="text-[10px] font-caption-mono text-[#a08e7a] mt-2">
+                          Analysis period: {item.period}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 pt-3 border-t border-[#262a35] text-[11px] text-[#a08e7a] font-caption-mono">
+                  Sensor contribution describes the reported composition of
+                  observations, not an independent accuracy score.
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-3 font-caption-mono text-xs">
-              <div>
-                <div className="flex justify-between text-[#dfe2f1] mb-1">
-                  <span>VIIRS High Confidence (&gt;80%)</span>
-                  <span className="text-[#ffc174] font-bold">68.4% (81,020)</span>
+            {/* Availability and uncertainty */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Availability gaps */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+                <div className="mb-4">
+                  <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
+                    Observation Availability
+                  </h3>
+
+                  <span className="font-caption-mono text-xs text-[#a08e7a]">
+                    Reported sensor coverage gaps
+                  </span>
                 </div>
-                <div className="w-full bg-[#0a0e18] h-2.5 rounded-full overflow-hidden border border-[#262a35]">
-                  <div className="bg-[#f59e0b] h-full rounded-full" style={{ width: '68.4%' }}></div>
-                </div>
+
+                {quality.availability.length === 0 ? (
+                  <p className="text-xs text-[#a08e7a] py-8 text-center">
+                    No availability gaps reported by the backend.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left font-caption-mono text-xs">
+                      <thead>
+                        <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase border-b border-[#262a35]">
+                          <th className="py-2.5 px-3">Sensor</th>
+                          <th className="py-2.5 px-3">Gap Start</th>
+                          <th className="py-2.5 px-3">Gap End</th>
+                          <th className="py-2.5 px-3">Description</th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-[#262a35]">
+                        {quality.availability.map((item, index) => (
+                          <tr
+                            key={`${item.sensor_family}-${item.gap_start}-${index}`}
+                            className="bg-[#171b26] text-[#dfe2f1]"
+                          >
+                            <td className="py-3 px-3 text-[#ffc174] font-bold">
+                              {item.sensor_family}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {formatDate(item.gap_start)}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {formatDate(item.gap_end)}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {item.label || 'N/A'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <div className="flex justify-between text-[#dfe2f1] mb-1">
-                  <span>VIIRS Nominal Confidence (50–80%)</span>
-                  <span className="text-[#7bd0ff] font-bold">26.8% (31,745)</span>
-                </div>
-                <div className="w-full bg-[#0a0e18] h-2.5 rounded-full overflow-hidden border border-[#262a35]">
-                  <div className="bg-[#7bd0ff] h-full rounded-full" style={{ width: '26.8%' }}></div>
-                </div>
-              </div>
+              {/* Uncertainty */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+                <div className="mb-4">
+                  <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
+                    Uncertainty Summary
+                  </h3>
 
-              <div>
-                <div className="flex justify-between text-[#dfe2f1] mb-1">
-                  <span>MODIS Nominal + High Detections</span>
-                  <span className="text-[#ffbcb7] font-bold">94.2% (45,517)</span>
+                  <span className="font-caption-mono text-xs text-[#a08e7a]">
+                    Available uncertainty metadata
+                  </span>
                 </div>
-                <div className="w-full bg-[#0a0e18] h-2.5 rounded-full overflow-hidden border border-[#262a35]">
-                  <div className="bg-[#ffbcb7] h-full rounded-full" style={{ width: '94.2%' }}></div>
+
+                <div className="bg-[#171b26] border border-[#262a35] rounded-lg p-5">
+                  <p className="font-caption-mono text-xs text-[#a08e7a]">
+                    INTERVAL LEVEL
+                  </p>
+
+                  <p className="text-3xl font-bold font-mono text-[#7bd0ff] mt-2">
+                    {quality.uncertainty_summary.interval_level !== null
+                      ? formatShare(
+                          quality.uncertainty_summary.interval_level,
+                        )
+                      : 'N/A'}
+                  </p>
+
+                  <p className="text-xs text-[#a08e7a] mt-3 leading-relaxed">
+                    This value represents the interval-level metadata supplied
+                    by the backend. It should not be interpreted as an
+                    individual observation's probability of being correct.
+                  </p>
                 </div>
               </div>
             </div>
+          </>
+        )}
 
-            <div className="mt-4 pt-3 border-t border-[#262a35] flex justify-between font-caption-mono text-[11px] text-[#a08e7a]">
-              <span>Low-confidence dropped: 0.04%</span>
-              <span className="text-[#10B981]">QC Threshold: Nominal (&gt;50%)</span>
-            </div>
-          </div>
-
-          {/* SHA-256 Provenance & Lineage Table */}
-          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
+        {/* Provenance */}
+        {!loading && !error && provenance && (
+          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">Verifiable Data Lineage Table</h3>
-                <span className="font-caption-mono text-xs text-[#a08e7a]">SHA-256 checksums and ingest batch records</span>
+                <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
+                  Verifiable Data Lineage
+                </h3>
+
+                <span className="font-caption-mono text-xs text-[#a08e7a]">
+                  Ingestion records and source metadata returned by the
+                  provenance API
+                </span>
               </div>
-              <span className="px-2 py-0.5 rounded bg-[#0a0e18] text-[#ffc174] font-caption-mono text-xs font-bold">
-                v2026.11.13-r1
+
+              <span className="px-2 py-1 rounded bg-[#0a0e18] text-[#7bd0ff] font-caption-mono text-xs">
+                {provenance.sources.length} SOURCE RECORDS
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-caption-mono text-[11px]">
-                <thead>
-                  <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase border-b border-[#262a35]">
-                    <th className="py-2 px-2.5">Source</th>
-                    <th className="py-2 px-2.5">Batch ID</th>
-                    <th className="py-2 px-2.5">Rows</th>
-                    <th className="py-2 px-2.5 text-right">SHA-256 Hash</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#262a35]">
-                  <tr className="bg-[#171b26] text-[#dfe2f1]">
-                    <td className="py-2 px-2.5 text-[#ffc174] font-bold">VIIRS VNP14IMG</td>
-                    <td className="py-2 px-2.5">ING-202611-042</td>
-                    <td className="py-2 px-2.5">118,450</td>
-                    <td className="py-2 px-2.5 text-right font-mono text-[#7bd0ff]">4c8e...39f1</td>
-                  </tr>
-                  <tr className="bg-[#171b26] text-[#dfe2f1]">
-                    <td className="py-2 px-2.5 text-[#ffbcb7] font-bold">MODIS MOD14</td>
-                    <td className="py-2 px-2.5">ING-202611-041</td>
-                    <td className="py-2 px-2.5">48,320</td>
-                    <td className="py-2 px-2.5 text-right font-mono text-[#7bd0ff]">9a12...8e20</td>
-                  </tr>
-                  <tr className="bg-[#171b26] text-[#dfe2f1]">
-                    <td className="py-2 px-2.5 text-[#7bd0ff] font-bold">H3 Harmonized</td>
-                    <td className="py-2 px-2.5">CAL-M2-2026</td>
-                    <td className="py-2 px-2.5">142,890</td>
-                    <td className="py-2 px-2.5 text-right font-mono text-[#7bd0ff]">7e9a...c418</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {provenance.sources.length === 0 ? (
+              <p className="text-xs text-[#a08e7a] py-8 text-center">
+                No provenance records are currently available.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-caption-mono text-[11px]">
+                  <thead>
+                    <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase border-b border-[#262a35]">
+                      <th className="py-2.5 px-3">Source ID</th>
+                      <th className="py-2.5 px-3">Product Version</th>
+                      <th className="py-2.5 px-3">File Name</th>
+                      <th className="py-2.5 px-3">Rows In</th>
+                      <th className="py-2.5 px-3">Ingested At</th>
+                      <th className="py-2.5 px-3 text-right">SHA-256</th>
+                    </tr>
+                  </thead>
 
-            <div className="mt-4 pt-3 border-t border-[#262a35] flex justify-between font-caption-mono text-[11px] text-[#a08e7a]">
-              <span>Git Commit: c8f32a0</span>
-              <span className="text-[#7bd0ff]">In-Memory DuckDB Active</span>
+                  <tbody className="divide-y divide-[#262a35]">
+                    {provenance.sources.map((source) => (
+                      <tr
+                        key={source.source_id}
+                        className="bg-[#171b26] text-[#dfe2f1]"
+                      >
+                        <td className="py-3 px-3 text-[#ffc174] font-bold">
+                          {source.source_id}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {source.product_version}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {source.file_name}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {formatNumber(source.rows_in)}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {formatDate(source.ingested_at)}
+                        </td>
+
+                        <td
+                          className="py-3 px-3 text-right font-mono text-[#7bd0ff]"
+                          title={source.sha256}
+                        >
+                          {shortenHash(source.sha256)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 pt-3 border-t border-[#262a35] flex flex-wrap justify-between gap-2 font-caption-mono text-[11px] text-[#a08e7a]">
+              <span>
+                Provenance records: {provenance.sources.length}
+              </span>
+
+              <span className="text-[#7bd0ff]">
+                Source metadata from backend
+              </span>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Scientific note */}
+        {!loading && !error && (
+          <div className="bg-[#171b26] border border-[#262a35] rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-[#7bd0ff]">
+                verified_user
+              </span>
+
+              <div>
+                <h3 className="font-caption-mono text-xs font-bold text-[#dfe2f1]">
+                  DATA QUALITY &amp; INTERPRETATION
+                </h3>
+
+                <p className="text-xs text-[#a08e7a] mt-2 leading-relaxed">
+                  Sensor confidence, observation availability, uncertainty
+                  and provenance are separate dimensions of data quality.
+                  A high native confidence class does not automatically
+                  establish cross-sensor equivalence. Missing coverage must
+                  not be interpreted as zero fire activity. Provenance
+                  records describe the source metadata available to the
+                  system.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

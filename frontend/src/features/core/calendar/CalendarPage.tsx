@@ -1,71 +1,366 @@
-import { useState } from 'react';
 
-const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+import { useEffect, useMemo, useState } from 'react';
+import {
+  getCalendar,
+  getRegions,
+  getCurrentVsMedian,
+  getHistoryYearly,
+} from '../../../api/core';
+
+const months = [
+  'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+  'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+];
+
+type CalendarDay = {
+  date: string;
+  harmonized_value: number | null;
+  lower: number | null;
+  upper: number | null;
+  data_flag?: string;
+};
+
+type Region = {
+  region_id: string;
+  name: string;
+};
+
+type Comparison = {
+  year: number;
+  month: number;
+  is_partial: boolean;
+  current: number | null;
+  median: number | null;
+  q25: number | null;
+  q75: number | null;
+  n_baseline_years: number;
+  ratio_to_median: number | null;
+};
+
+function formatNumber(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '—';
+  }
+
+  return Math.round(value).toLocaleString('en-IN');
+}
+
+function getMonthDays(year: number, monthIndex: number) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function getDayColor(day: CalendarDay | undefined) {
+  if (!day) return 'bg-[#111827] border border-dashed border-[#303746]';
+
+  if (day.data_flag === 'no_data' || day.data_flag === 'low_coverage') {
+    return 'bg-[#111827] border border-dashed border-[#596273]';
+  }
+
+  const value = day.harmonized_value;
+
+  if (value === null || value === undefined) {
+    return 'bg-[#111827] border border-dashed border-[#303746]';
+  }
+
+  if (value === 0) return 'bg-[#1c1f2a]';
+
+  if (value < 50) return 'bg-[#7bd0ff]/30';
+  if (value < 150) return 'bg-[#7bd0ff]/60';
+  if (value < 300) return 'bg-[#ffc174]/70';
+
+  return 'bg-[#f59e0b]';
+}
+
+function AppLoading() {
+  return (
+    <div className="min-h-[300px] flex items-center justify-center text-[#7bd0ff] font-mono text-sm">
+      Loading calendar data...
+    </div>
+  );
+}
 
 export default function CalendarPage() {
-  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedMetric, setSelectedMetric] = useState<'hai' | 'frp'>('hai');
-  const [hoveredDay, setHoveredDay] = useState<{ date: string; value: number; lower: number; upper: number } | null>({
-    date: '2024-08-18',
-    value: 512,
-    lower: 488,
-    upper: 540,
-  });
+
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [days, setDays] = useState<CalendarDay[]>([]);
+  const [comparison, setComparison] = useState<Comparison | null>(null);
+
+  const [unit, setUnit] = useState('harmonized activity index');
+  const [dataMode, setDataMode] = useState<'fixture' | 'real' | null>(null);
+  const [isSynthetic, setIsSynthetic] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load regions and available historical years.
+  useEffect(() => {
+    let active = true;
+
+    async function loadInitialData() {
+      try {
+        const [regionResponse, historyResponse] = await Promise.all([
+          getRegions(),
+          getHistoryYearly(),
+        ]);
+
+        if (!active) return;
+
+        const regionList = (regionResponse.data as any).regions ?? [];
+        const yearList = ((historyResponse.data as any).years ?? [])
+          .map((item: any) => Number(item.year))
+          .filter((year: number) => Number.isFinite(year));
+
+        setRegions(regionList);
+
+        const firstRegion = regionList[0]?.region_id ?? '';
+        setSelectedRegion(firstRegion);
+
+        const uniqueYears = [...new Set<number>(yearList)].sort(
+          (a, b) => b - a,
+        );
+
+        setAvailableYears(uniqueYears);
+
+        if (uniqueYears.length > 0) {
+          setSelectedYear(uniqueYears[0]);
+        }
+      } catch (err) {
+        if (active) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Unable to load calendar filters.',
+          );
+        }
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Load calendar and current-vs-median data.
+  useEffect(() => {
+    if (!selectedRegion) return;
+
+    let active = true;
+
+    async function loadCalendarData() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const [calendarResponse, comparisonResponse] = await Promise.all([
+          getCalendar({
+            region_id: selectedRegion,
+            year: selectedYear,
+          }),
+          getCurrentVsMedian({
+            region_id: selectedRegion,
+          }),
+        ]);
+
+        if (!active) return;
+
+        const calendarData = calendarResponse.data as any;
+        const comparisonData = comparisonResponse.data as Comparison;
+
+        setDays(calendarData.days ?? []);
+        setUnit(calendarData.unit ?? 'harmonized activity index');
+        setComparison(comparisonData);
+
+        setDataMode(calendarResponse.meta?.data_mode ?? null);
+        setIsSynthetic(calendarResponse.meta?.is_synthetic ?? false);
+      } catch (err) {
+        if (active) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Unable to load calendar data.',
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadCalendarData();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRegion, selectedYear]);
+
+  const dayMap = useMemo(() => {
+    const map = new Map<string, CalendarDay>();
+
+    days.forEach((day) => {
+      map.set(day.date, day);
+    });
+
+    return map;
+  }, [days]);
+
+  const statistics = useMemo(() => {
+    const validDays = days.filter(
+      (day) =>
+        day.harmonized_value !== null &&
+        day.harmonized_value !== undefined,
+    );
+
+    const total = validDays.reduce(
+      (sum, day) => sum + (day.harmonized_value ?? 0),
+      0,
+    );
+
+    const peakDay = validDays.reduce<CalendarDay | null>(
+      (peak, day) =>
+        !peak ||
+        (day.harmonized_value ?? 0) >
+          (peak.harmonized_value ?? 0)
+          ? day
+          : peak,
+      null,
+    );
+
+    return {
+      total,
+      peakDay,
+      availableDays: validDays.length,
+    };
+  }, [days]);
+
+  const comparisonRatio =
+    comparison?.ratio_to_median !== null &&
+    comparison?.ratio_to_median !== undefined
+      ? comparison.ratio_to_median
+      : null;
+
+  const comparisonPosition = useMemo(() => {
+    if (
+      !comparison ||
+      comparison.current === null ||
+      comparison.q25 === null ||
+      comparison.q75 === null
+    ) {
+      return null;
+    }
+
+    const maxValue = Math.max(
+      comparison.current,
+      comparison.q75,
+      comparison.median ?? 0,
+      1,
+    );
+
+    return {
+      q25: (comparison.q25 / maxValue) * 100,
+      q75: (comparison.q75 / maxValue) * 100,
+      median:
+        comparison.median !== null
+          ? (comparison.median / maxValue) * 100
+          : null,
+      current: (comparison.current / maxValue) * 100,
+    };
+  }, [comparison]);
+
+  if (loading && days.length === 0) {
+    return <AppLoading />;
+  }
 
   return (
     <div className="flex flex-col w-full pb-16">
-      {/* Top Telemetry & Control Band */}
+      {/* Header and controls */}
       <section className="w-full px-6 py-6 bg-[#0a0e18] border-b border-[#1F2937]">
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
           <div className="flex flex-col max-w-3xl">
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-[#f59e0b] animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-[#f59e0b] animate-pulse" />
               <span className="font-label-mono text-[10px] text-[#ffc174] uppercase tracking-widest font-semibold">
                 MISSION TELEMETRY • SUBSYSTEM 03
               </span>
-              <span className="text-[#a08e7a] font-caption-mono text-xs">| BASELINE 2000-2026 UTC</span>
+              {dataMode && (
+                <span className="text-[#a08e7a] font-caption-mono text-xs">
+                  | {dataMode.toUpperCase()} DATA
+                </span>
+              )}
             </div>
+
             <h1 className="font-headline-lg text-2xl lg:text-3xl font-bold text-[#dfe2f1] tracking-tight">
               Historical Burning Activity Calendar &amp; Multi-Year Climatology Matrix
             </h1>
+
             <p className="font-body-md text-xs sm:text-sm text-[#d8c3ad] mt-1 leading-relaxed">
-              Sensor-calibrated daily thermal radiance metrics, cross-era sensor harmonization confidence intervals, and longitudinal seasonal wildfire anomaly tracking.
+              Daily harmonized satellite fire activity with uncertainty
+              intervals and historical comparisons.
             </p>
+
+            {isSynthetic && (
+              <span className="mt-2 text-xs text-[#ffc174]">
+                Synthetic demonstration data — not observed fire activity.
+              </span>
+            )}
           </div>
 
-          {/* Controls */}
-          <div className="flex flex-wrap items-center gap-2 bg-[#171b26] p-1.5 rounded-lg border border-[#262a35] shadow-sm">
-            {/* Region */}
+          <div className="flex flex-wrap items-center gap-2 bg-[#171b26] p-1.5 rounded-lg border border-[#262a35]">
+            {/* Region selector */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c1f2a] rounded border border-[#262a35]">
-              <span className="material-symbols-outlined text-[#7bd0ff] text-sm">travel_explore</span>
-              <select className="bg-transparent font-label-mono text-xs text-[#dfe2f1] focus:outline-none cursor-pointer">
-                <option className="bg-[#1c1f2a]" value="pwn">Pacific NW / Boreal Cascadia</option>
-                <option className="bg-[#1c1f2a]" value="amz">Amazon Basin Arc</option>
-                <option className="bg-[#1c1f2a]" value="sib">Siberian Larch Taiga</option>
-                <option className="bg-[#1c1f2a]" value="aus">SE Australia Eurobodalla</option>
+              <span className="material-symbols-outlined text-[#7bd0ff] text-sm">
+                travel_explore
+              </span>
+
+              <select
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                className="bg-transparent font-label-mono text-xs text-[#dfe2f1] focus:outline-none cursor-pointer"
+              >
+                {regions.map((region) => (
+                  <option
+                    key={region.region_id}
+                    value={region.region_id}
+                    className="bg-[#1c1f2a]"
+                  >
+                    {region.name}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Target Year */}
+            {/* Year selector */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c1f2a] rounded border border-[#262a35]">
-              <span className="material-symbols-outlined text-[#ffc174] text-sm">history_edu</span>
-              <label className="font-caption-mono text-[10px] text-[#a08e7a]">YEAR:</label>
+              <span className="material-symbols-outlined text-[#ffc174] text-sm">
+                history_edu
+              </span>
+
+              <label className="font-caption-mono text-[10px] text-[#a08e7a]">
+                YEAR:
+              </label>
+
               <select
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
                 className="bg-transparent font-label-mono text-xs text-[#ffc174] font-semibold focus:outline-none cursor-pointer"
               >
-                <option className="bg-[#1c1f2a]" value="2026">2026 (YTD)</option>
-                <option className="bg-[#1c1f2a]" value="2025">2025</option>
-                <option className="bg-[#1c1f2a]" value="2024">2024</option>
-                <option className="bg-[#1c1f2a]" value="2023">2023</option>
-                <option className="bg-[#1c1f2a]" value="2020">2020</option>
-                <option className="bg-[#1c1f2a]" value="2012">2012 (Sensor Transition)</option>
-                <option className="bg-[#1c1f2a]" value="2003">2003 (Early MODIS)</option>
+                {availableYears.map((year) => (
+                  <option
+                    key={year}
+                    value={year}
+                    className="bg-[#1c1f2a]"
+                  >
+                    {year}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Metric Toggle */}
+            {/* Metric selector */}
             <div className="flex items-center bg-[#1c1f2a] p-0.5 rounded border border-[#262a35]">
               <button
                 onClick={() => setSelectedMetric('hai')}
@@ -78,6 +373,7 @@ export default function CalendarPage() {
               >
                 Harmonized HAI
               </button>
+
               <button
                 onClick={() => setSelectedMetric('frp')}
                 className={`px-3 py-1 rounded font-label-mono text-xs font-semibold transition-all ${
@@ -93,177 +389,321 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* 4 Quick Stat Cards */}
+        {/* Error message */}
+        {error && (
+          <div className="mt-4 p-3 rounded border border-red-500/30 bg-red-500/10 text-red-300 text-sm">
+            {error}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="ml-3 underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-5">
-          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35] flex flex-col justify-between">
-            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">Annual Harmonized Total</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="font-mono-metric-lg text-2xl font-bold text-[#ffc174]">142,890</span>
-              <span className="font-caption-mono text-[10px] text-[#7bd0ff]">±3.2%</span>
+          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35]">
+            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">
+              Annual Harmonized Total
+            </span>
+            <div className="font-mono-metric-lg text-2xl font-bold text-[#ffc174] mt-1">
+              {formatNumber(statistics.total)}
             </div>
-            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">+14.2% vs 10-Yr Climatology</span>
+            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">
+              {unit}
+            </span>
           </div>
 
-          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35] flex flex-col justify-between">
-            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">Climatological Peak Day</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="font-mono-metric-lg text-2xl font-bold text-[#dfe2f1]">Aug 18</span>
-              <span className="font-caption-mono text-[10px] text-[#ffc174]">DOY 231</span>
+          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35]">
+            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">
+              Peak Recorded Day
+            </span>
+            <div className="font-mono-metric-lg text-xl font-bold text-[#dfe2f1] mt-1">
+              {statistics.peakDay?.date ?? '—'}
             </div>
-            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">Peak Daily Density: 512 eq</span>
+            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">
+              {formatNumber(statistics.peakDay?.harmonized_value)} activity
+            </span>
           </div>
 
-          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35] flex flex-col justify-between">
-            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">Current vs Median</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="font-mono-metric-lg text-2xl font-bold text-[#7bd0ff]">1.34x</span>
-              <span className="font-caption-mono text-[10px] text-[#ffbcb7]">Q3 Tier</span>
+          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35]">
+            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">
+              Current vs Median
+            </span>
+            <div className="font-mono-metric-lg text-2xl font-bold text-[#7bd0ff] mt-1">
+              {comparisonRatio !== null
+                ? `${comparisonRatio.toFixed(2)}x`
+                : '—'}
             </div>
-            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">Historical IQR: 280–420 eq</span>
+            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">
+              Historical comparison
+            </span>
           </div>
 
-          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35] flex flex-col justify-between">
-            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">Fire Season Length</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="font-mono-metric-lg text-2xl font-bold text-[#ffddb8]">118 Days</span>
-              <span className="font-caption-mono text-[10px] text-[#ffb4ab]">+18d Exp</span>
+          <div className="p-3.5 rounded bg-[#171b26] border border-[#262a35]">
+            <span className="font-caption-mono text-[10px] text-[#a08e7a] uppercase">
+              Available Daily Records
+            </span>
+            <div className="font-mono-metric-lg text-2xl font-bold text-[#ffddb8] mt-1">
+              {statistics.availableDays}
             </div>
-            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">10% Onset to 90% Cessation</span>
+            <span className="font-caption-mono text-[10px] text-[#d8c3ad] mt-1">
+              Days with reported values
+            </span>
           </div>
         </div>
       </section>
 
-      {/* Main Calendar Matrix & Heatmap */}
+      {/* Calendar heatmap */}
       <section className="w-full px-6 py-6 space-y-6">
         <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#262a35] gap-2">
             <div>
               <h2 className="font-title-md text-base font-bold text-[#dfe2f1] flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#ffc174] text-lg">calendar_month</span>
+                <span className="material-symbols-outlined text-[#ffc174] text-lg">
+                  calendar_month
+                </span>
                 Daily Burning Activity Heatmap ({selectedYear})
               </h2>
+
               <span className="font-caption-mono text-xs text-[#a08e7a]">
-                365-Day Matrix showing Harmonized Fire Activity Index with uncertainty intervals
+                Daily satellite-derived activity and reported uncertainty
               </span>
             </div>
-
-            {/* Hovered Day Telemetry Box */}
-            {hoveredDay && (
-              <div className="flex items-center gap-3 bg-[#0a0e18] px-3.5 py-1.5 rounded border border-[#262a35] font-caption-mono text-xs">
-                <span className="text-[#a08e7a] font-semibold">{hoveredDay.date}:</span>
-                <span className="text-[#ffc174] font-bold">{hoveredDay.value} eq</span>
-                <span className="text-[#d8c3ad]">[{hoveredDay.lower} – {hoveredDay.upper}]</span>
-              </div>
-            )}
           </div>
 
-          {/* Simulated 12-Month Heatmap Calendar Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-            {months.map((m, mIdx) => {
-              // Simulated intensity per month
-              const isPeak = mIdx >= 6 && mIdx <= 8;
-              const isModerate = mIdx === 5 || mIdx === 9;
-              return (
-                <div key={m} className="bg-[#171b26] p-3 rounded border border-[#262a35]">
-                  <div className="flex justify-between items-center mb-2 font-caption-mono text-xs">
-                    <span className="font-bold text-[#dfe2f1]">{m}</span>
-                    <span className="text-[#a08e7a]">
-                      {isPeak ? 'High Activity' : isModerate ? 'Moderate' : 'Low / Quiescent'}
-                    </span>
-                  </div>
-                  {/* Days grid 4x7 or 5x7 */}
-                  <div className="grid grid-cols-7 gap-1">
-                    {Array.from({ length: 30 }).map((_, dIdx) => {
-                      let cellBg = 'bg-[#0a0e18]';
-                      let cellVal = Math.floor(Math.random() * 20) + 1;
-                      if (isPeak) {
-                        cellBg = dIdx % 3 === 0 ? 'bg-[#f59e0b]' : 'bg-[#ffc174]/80';
-                        cellVal = Math.floor(Math.random() * 300) + 200;
-                      } else if (isModerate) {
-                        cellBg = dIdx % 2 === 0 ? 'bg-[#7bd0ff]/60' : 'bg-[#1c1f2a]';
-                        cellVal = Math.floor(Math.random() * 80) + 30;
-                      }
-                      return (
-                        <div
-                          key={dIdx}
-                          onMouseEnter={() =>
-                            setHoveredDay({
-                              date: `${selectedYear}-${String(mIdx + 1).padStart(2, '0')}-${String(dIdx + 1).padStart(2, '0')}`,
-                              value: cellVal,
-                              lower: Math.round(cellVal * 0.92),
-                              upper: Math.round(cellVal * 1.08),
-                            })
-                          }
-                          className={`w-full aspect-square rounded-sm ${cellBg} hover:ring-2 hover:ring-[#7bd0ff] cursor-pointer transition-all`}
-                        ></div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Color scale legend */}
-          <div className="flex items-center justify-between pt-4 mt-3 border-t border-[#262a35] font-caption-mono text-xs text-[#a08e7a]">
-            <span>Low (0 detections)</span>
-            <div className="flex items-center gap-1">
-              <span className="w-4 h-3 bg-[#0a0e18] rounded-xs border border-[#262a35]"></span>
-              <span className="w-4 h-3 bg-[#1c1f2a] rounded-xs"></span>
-              <span className="w-4 h-3 bg-[#7bd0ff]/60 rounded-xs"></span>
-              <span className="w-4 h-3 bg-[#ffc174]/80 rounded-xs"></span>
-              <span className="w-4 h-3 bg-[#f59e0b] rounded-xs"></span>
+          {selectedMetric === 'frp' ? (
+            <div className="mt-6 p-5 rounded bg-[#0a0e18] border border-[#262a35] text-sm text-[#a08e7a]">
+              FRP is not provided by the current daily calendar API. The
+              heatmap displays harmonized activity only.
             </div>
-            <span>Critical (&gt;400 eq/day)</span>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+                {months.map((month, monthIndex) => {
+                  const numberOfDays = getMonthDays(
+                    selectedYear,
+                    monthIndex,
+                  );
+
+                  const firstWeekday = new Date(
+                    selectedYear,
+                    monthIndex,
+                    1,
+                  ).getDay();
+
+                  return (
+                    <div
+                      key={month}
+                      className="bg-[#171b26] p-3 rounded border border-[#262a35]"
+                    >
+                      <div className="flex justify-between items-center mb-3 font-caption-mono text-xs">
+                        <span className="font-bold text-[#dfe2f1]">
+                          {month}
+                        </span>
+                        <span className="text-[#a08e7a]">
+                          {numberOfDays} days
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-1 mb-1">
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(
+                          (weekday, index) => (
+                            <span
+                              key={`${weekday}-${index}`}
+                              className="text-center text-[9px] text-[#a08e7a]"
+                            >
+                              {weekday}
+                            </span>
+                          ),
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: firstWeekday }).map(
+                          (_, index) => (
+                            <div key={`empty-${index}`} />
+                          ),
+                        )}
+
+                        {Array.from({ length: numberOfDays }).map(
+                          (_, dayIndex) => {
+                            const date = `${selectedYear}-${String(
+                              monthIndex + 1,
+                            ).padStart(2, '0')}-${String(
+                              dayIndex + 1,
+                            ).padStart(2, '0')}`;
+
+                            const day = dayMap.get(date);
+
+                            return (
+                              <div
+                                key={date}
+                                title={
+                                  day
+                                    ? `${date} | Activity: ${formatNumber(
+                                        day.harmonized_value,
+                                      )} | Interval: ${formatNumber(
+                                        day.lower,
+                                      )}–${formatNumber(day.upper)}`
+                                    : `${date} | No data returned`
+                                }
+                                className={`relative aspect-square rounded-sm ${getDayColor(
+                                  day,
+                                )} hover:ring-2 hover:ring-[#7bd0ff] transition-all`}
+                              >
+                                <span className="absolute inset-0 flex items-center justify-center text-[8px] text-[#dfe2f1]/80">
+                                  {dayIndex + 1}
+                                </span>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-[#262a35] font-caption-mono text-xs text-[#a08e7a]">
+                <span>Lower activity</span>
+
+                <div className="flex items-center gap-1">
+                  <span className="w-4 h-3 bg-[#1c1f2a] rounded-sm" />
+                  <span className="w-4 h-3 bg-[#7bd0ff]/30 rounded-sm" />
+                  <span className="w-4 h-3 bg-[#7bd0ff]/60 rounded-sm" />
+                  <span className="w-4 h-3 bg-[#ffc174]/70 rounded-sm" />
+                  <span className="w-4 h-3 bg-[#f59e0b] rounded-sm" />
+                  <span className="w-4 h-3 bg-[#111827] border border-dashed border-[#596273] rounded-sm" />
+                </div>
+
+                <span>Higher activity / No data</span>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Current Month vs Historical Median */}
+        {/* Current month vs historical median */}
         <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
           <div className="flex items-center justify-between pb-3 border-b border-[#262a35]">
             <div>
-              <h3 className="font-title-sm text-base font-bold text-[#dfe2f1]">Current Month vs Historical Median</h3>
-              <span className="font-caption-mono text-xs text-[#a08e7a]">Comparing current burn activity against 2000–2025 climatological baseline</span>
-            </div>
-            <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#ffc174] font-caption-mono text-xs font-bold">
-              AUGUST • PEAK WINDOW
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
-            <div className="space-y-3">
-              <div className="flex justify-between font-caption-mono text-xs">
-                <span className="text-[#a08e7a]">Historical Median:</span>
-                <span className="text-[#dfe2f1] font-bold">342 eq</span>
-              </div>
-              <div className="flex justify-between font-caption-mono text-xs">
-                <span className="text-[#a08e7a]">Interquartile Range (IQR):</span>
-                <span className="text-[#7bd0ff] font-bold">[240 – 480 eq]</span>
-              </div>
-              <div className="flex justify-between font-caption-mono text-xs">
-                <span className="text-[#a08e7a]">Current Observed Harmonized:</span>
-                <span className="text-[#ffc174] font-bold">512 eq (+49.7%)</span>
-              </div>
+              <h3 className="font-title-sm text-base font-bold text-[#dfe2f1]">
+                Current Month vs Historical Median
+              </h3>
+              <span className="font-caption-mono text-xs text-[#a08e7a]">
+                Comparison against the historical distribution for the same
+                calendar month
+              </span>
             </div>
 
-            <div className="lg:col-span-2 flex flex-col justify-center space-y-2">
-              <div className="relative w-full h-8 bg-[#0a0e18] rounded-lg border border-[#262a35] overflow-hidden flex items-center">
-                {/* IQR shaded band */}
-                <div className="absolute left-[35%] w-[35%] h-full bg-[#7bd0ff]/20 border-x border-[#7bd0ff]/40"></div>
-                {/* Median marker */}
-                <div className="absolute left-[50%] h-full w-0.5 bg-[#dfe2f1] z-10"></div>
-                {/* Current marker */}
-                <div className="absolute left-[72%] h-full w-2 bg-[#ffc174] z-20 rounded shadow"></div>
+            {comparison && (
+              <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#ffc174] font-caption-mono text-xs font-bold">
+                {months[comparison.month - 1] ?? 'MONTH'}
+              </span>
+            )}
+          </div>
+
+          {!comparison ? (
+            <p className="mt-5 text-sm text-[#a08e7a]">
+              Historical comparison is not available.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+              <div className="space-y-3">
+                <div className="flex justify-between font-caption-mono text-xs">
+                  <span className="text-[#a08e7a]">Historical Median:</span>
+                  <span className="text-[#dfe2f1] font-bold">
+                    {formatNumber(comparison.median)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between font-caption-mono text-xs">
+                  <span className="text-[#a08e7a]">Interquartile Range:</span>
+                  <span className="text-[#7bd0ff] font-bold">
+                    [{formatNumber(comparison.q25)} –{' '}
+                    {formatNumber(comparison.q75)}]
+                  </span>
+                </div>
+
+                <div className="flex justify-between font-caption-mono text-xs">
+                  <span className="text-[#a08e7a]">Current Activity:</span>
+                  <span className="text-[#ffc174] font-bold">
+                    {formatNumber(comparison.current)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between font-caption-mono text-xs">
+                  <span className="text-[#a08e7a]">Baseline Years:</span>
+                  <span className="text-[#dfe2f1] font-bold">
+                    {comparison.n_baseline_years}
+                  </span>
+                </div>
+
+                {comparison.is_partial && (
+                  <p className="text-xs text-[#ffc174]">
+                    Current month is partial. Interpret the comparison
+                    accordingly.
+                  </p>
+                )}
               </div>
-              <div className="flex justify-between font-caption-mono text-[10px] text-[#a08e7a]">
-                <span>0 eq (Min)</span>
-                <span>Q1 (240)</span>
-                <span className="text-[#dfe2f1]">Median (342)</span>
-                <span>Q3 (480)</span>
-                <span className="text-[#ffc174] font-bold">Current (512)</span>
+
+              <div className="lg:col-span-2 flex flex-col justify-center space-y-3">
+                {comparisonPosition ? (
+                  <>
+                    <div className="relative w-full h-8 bg-[#0a0e18] rounded-lg border border-[#262a35] overflow-hidden">
+                      <div
+                        className="absolute h-full bg-[#7bd0ff]/20 border-x border-[#7bd0ff]/40"
+                        style={{
+                          left: `${comparisonPosition.q25}%`,
+                          width: `${Math.max(
+                            0,
+                            comparisonPosition.q75 -
+                              comparisonPosition.q25,
+                          )}%`,
+                        }}
+                      />
+
+                      {comparisonPosition.median !== null && (
+                        <div
+                          className="absolute top-0 h-full w-0.5 bg-[#dfe2f1] z-10"
+                          style={{
+                            left: `${comparisonPosition.median}%`,
+                          }}
+                        />
+                      )}
+
+                      <div
+                        className="absolute top-0 h-full w-2 bg-[#ffc174] z-20 rounded"
+                        style={{
+                          left: `${Math.min(
+                            98,
+                            comparisonPosition.current,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex justify-between flex-wrap gap-2 font-caption-mono text-[10px] text-[#a08e7a]">
+                      <span>Q1: {formatNumber(comparison.q25)}</span>
+                      <span>Median: {formatNumber(comparison.median)}</span>
+                      <span>Q3: {formatNumber(comparison.q75)}</span>
+                      <span className="text-[#ffc174] font-bold">
+                        Current: {formatNumber(comparison.current)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-[#a08e7a]">
+                    Insufficient comparison values to draw the distribution
+                    band.
+                  </p>
+                )}
               </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
     </div>

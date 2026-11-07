@@ -1,23 +1,92 @@
-import { useState } from 'react';
+
+import { useEffect, useState } from 'react';
+import { getSeasonShift } from '../../../api/advanced';
+import type { SeasonShiftData } from '../../../api/types/advanced';
+
+type Tab = 'shift' | 'memory' | 'anomaly' | 'cluster';
 
 export default function SeasonShiftPage() {
-  const [activeTab, setActiveTab] = useState<'shift' | 'memory' | 'anomaly' | 'cluster'>('shift');
+  const [activeTab, setActiveTab] = useState<Tab>('shift');
+  const [seasonData, setSeasonData] = useState<SeasonShiftData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'shift') return;
+
+    let cancelled = false;
+
+    async function loadSeasonShift() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await getSeasonShift();
+
+        if (!cancelled) {
+          setSeasonData(response.data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Unable to load season shift data.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadSeasonShift();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
+
+  const comparison = seasonData?.comparison;
+
+  const onsetShift = comparison?.onset_shift_days.estimate;
+  const endShift = comparison?.end_shift_days.estimate;
+  const peakChange = comparison?.peak_month_change;
+
+  const baseline = comparison?.baseline;
+  const recent = comparison?.recent;
+
+  const formatValue = (value: number | null | undefined) =>
+    value == null ? 'N/A' : value.toFixed(1);
 
   return (
     <div className="flex flex-col w-full pb-16">
-      {/* Mandatory Scientific Disclaimer Banner */}
+
+      {/* SCIENTIFIC DISCLAIMER */}
       <div className="w-full px-6 py-2 bg-[#171b26] border-b border-[#262a35]">
         <div className="flex items-start gap-2.5">
-          <span className="material-symbols-outlined text-[#ffc174] text-base mt-0.5 shrink-0">verified_user</span>
+          <span className="material-symbols-outlined text-[#ffc174] text-base mt-0.5 shrink-0">
+            verified_user
+          </span>
+
           <p className="font-caption-mono text-xs text-[#d8c3ad] leading-relaxed">
-            <strong className="text-[#ffc174] font-medium">SCIENTIFIC DISCLAIMER:</strong> All intelligence models are descriptive statistical summaries of the harmonized satellite record. No causal climate attribution or wildfire perimeter claims are made. Radiometric FRP signals denote thermal sensor radiative power, subject to orbital sampling cadences and cloud occlusion masks.
+            <strong className="text-[#ffc174] font-medium">
+              SCIENTIFIC DISCLAIMER:
+            </strong>{' '}
+            All intelligence models are descriptive statistical summaries of
+            the harmonized satellite record. No causal climate attribution or
+            wildfire perimeter claims are made. Radiometric FRP signals denote
+            thermal sensor radiative power, subject to orbital sampling
+            cadences and cloud occlusion masks.
           </p>
         </div>
       </div>
 
-      {/* Tiered Engine Navigation Segment */}
+      {/* NAVIGATION */}
       <div className="w-full px-6 bg-[#1c1f2a] border-b border-[#262a35]">
         <div className="flex items-center gap-3 overflow-x-auto py-2">
+
           <button
             onClick={() => setActiveTab('shift')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded text-xs font-semibold whitespace-nowrap transition-colors ${
@@ -26,7 +95,9 @@ export default function SeasonShiftPage() {
                 : 'text-[#9CA3AF] hover:text-[#dfe2f1]'
             }`}
           >
-            <span className="material-symbols-outlined text-base">trending_up</span>
+            <span className="material-symbols-outlined text-base">
+              trending_up
+            </span>
             <span>Phenological Fire Season Shift</span>
             <span className="px-1.5 py-0.5 rounded bg-[#f59e0b] text-[#0B0F19] font-caption-mono text-[9px] uppercase font-bold ml-1">
               TIER A
@@ -41,7 +112,9 @@ export default function SeasonShiftPage() {
                 : 'text-[#9CA3AF] hover:text-[#dfe2f1]'
             }`}
           >
-            <span className="material-symbols-outlined text-base">memory</span>
+            <span className="material-symbols-outlined text-base">
+              memory
+            </span>
             <span>Spatial Fire Memory Map</span>
             <span className="px-1.5 py-0.5 rounded bg-[#313540] text-[#7bd0ff] font-caption-mono text-[9px] uppercase font-bold ml-1">
               TIER B
@@ -56,7 +129,9 @@ export default function SeasonShiftPage() {
                 : 'text-[#9CA3AF] hover:text-[#dfe2f1]'
             }`}
           >
-            <span className="material-symbols-outlined text-base">crisis_alert</span>
+            <span className="material-symbols-outlined text-base">
+              crisis_alert
+            </span>
             <span>Explainable Anomaly Engine</span>
             <span className="px-1.5 py-0.5 rounded bg-[#313540] text-[#ffc174] font-caption-mono text-[9px] uppercase font-bold ml-1">
               TIER A
@@ -71,241 +146,369 @@ export default function SeasonShiftPage() {
                 : 'text-[#9CA3AF] hover:text-[#dfe2f1]'
             }`}
           >
-            <span className="material-symbols-outlined text-base">radar</span>
+            <span className="material-symbols-outlined text-base">
+              radar
+            </span>
             <span>Cluster Tracking &amp; Exposure</span>
             <span className="px-1.5 py-0.5 rounded bg-[#313540] text-[#a08e7a] font-caption-mono text-[9px] uppercase font-bold ml-1">
               TIER C
             </span>
           </button>
+
         </div>
       </div>
 
-      {/* MAIN ENGINE CONTENT CONTAINER */}
+      {/* MAIN CONTENT */}
       <div className="w-full px-6 py-6 flex flex-col gap-6">
-        {activeTab === 'shift' && (
-          <div className="flex flex-col gap-6">
-            {/* Top Stat Matrix: Phenological Milestones */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Milestone 1: Onset */}
-              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-caption-mono text-[10px] text-[#7bd0ff] uppercase tracking-wider">PHENOLOGICAL 10% ONSET</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#313540] text-[#7bd0ff] font-label-mono text-xs">DAY 162 → 144</span>
-                </div>
-                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">Season Onset Shift</span>
-                <div className="my-2 flex items-baseline gap-1.5">
-                  <span className="font-mono-metric-lg text-2xl font-bold text-[#ffc174]">-18.4</span>
-                  <span className="font-label-mono text-xs text-[#ffc174] uppercase">days earlier</span>
-                </div>
-                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
-                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
-                    Theil-Sen slope: <span className="text-[#dfe2f1] font-mono">-1.80 d/yr</span><br />
-                    95% CI: <span className="text-[#7bd0ff] font-mono">[-2.41, -1.18]</span> • Kendall's τ = -0.58
-                  </p>
-                </div>
-              </div>
 
-              {/* Milestone 2: Peak */}
-              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-caption-mono text-[10px] text-[#ffc174] uppercase tracking-wider">MAX RADIOMETRIC FRP PEAK</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#313540] text-[#ffc174] font-label-mono text-xs">AUG 22 → AUG 09</span>
-                </div>
-                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">Season Peak Advancement</span>
-                <div className="my-2 flex items-baseline gap-1.5">
-                  <span className="font-mono-metric-lg text-2xl font-bold text-[#f59e0b]">-13.0</span>
-                  <span className="font-label-mono text-xs text-[#f59e0b] uppercase">days forward</span>
-                </div>
-                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
-                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
-                    Gaussian kernel: <span className="text-[#dfe2f1] font-mono">σ=7d</span><br />
-                    Mean Daily Peak: <span className="text-[#ffc174] font-mono">4,192 MW</span> (+44.1%)
-                  </p>
-                </div>
-              </div>
-
-              {/* Milestone 3: Cessation */}
-              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-caption-mono text-[10px] text-[#7bd0ff] uppercase tracking-wider">AUTUMN TRAIL (90%)</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#313540] text-[#7bd0ff] font-label-mono text-xs">OCT 03 → OCT 14</span>
-                </div>
-                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">Season Cessation Lag</span>
-                <div className="my-2 flex items-baseline gap-1.5">
-                  <span className="font-mono-metric-lg text-2xl font-bold text-[#7bd0ff]">+11.2</span>
-                  <span className="font-label-mono text-xs text-[#7bd0ff] uppercase">days longer</span>
-                </div>
-                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
-                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
-                    Theil-Sen slope: <span className="text-[#dfe2f1] font-mono">+1.12 d/yr</span><br />
-                    Late-autumn smoldering: <span className="text-[#7bd0ff] font-mono">p=0.002</span>, Mann-Kendall
-                  </p>
-                </div>
-              </div>
-
-              {/* Milestone 4: Total Window */}
-              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-caption-mono text-[10px] text-[#ffb4ab] uppercase tracking-wider">ACTIVE DURATION DELTA</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#93000a] text-[#ffdad6] font-label-mono text-xs">CRITICAL EXPANSION</span>
-                </div>
-                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">Total Burning Window</span>
-                <div className="my-2 flex items-baseline gap-1.5">
-                  <span className="font-mono-metric-lg text-2xl font-bold text-[#ffc174]">+29.6</span>
-                  <span className="font-label-mono text-xs text-[#ffc174] uppercase">days added</span>
-                </div>
-                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35] flex items-center justify-between">
-                  <span className="font-label-mono text-xs text-[#dfe2f1] font-bold">114.2 d → 143.8 d</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#f59e0b]/20 text-[#ffc174] font-caption-mono text-[10px] font-bold">p &lt; 0.001</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Sigmoid Phenology Curves Visualization */}
-            <div className="bg-[#1c1f2a] border border-[#262a35] p-5 rounded-lg shadow-md">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-headline-sm text-base font-bold text-[#dfe2f1]">
-                      Cumulative Radiative Energy Sigmoid (DOY 100 - 320)
-                    </h3>
-                    <span className="px-2 py-0.5 rounded bg-[#f59e0b] text-[#0B0F19] font-caption-mono text-[10px] font-semibold">
-                      SIGMOID REGRESSION
-                    </span>
-                  </div>
-                  <p className="font-body-sm text-xs text-[#d8c3ad] mt-0.5">
-                    Pacific NW Bioregion: Baseline Era (2002–2012) vs Recent Multi-Sensor Era (2015–2025)
-                  </p>
-                </div>
-                <div className="px-3 py-1.5 rounded bg-[#0a0e18] border border-[#262a35] flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[#7bd0ff] text-base">verified</span>
-                  <span className="font-caption-mono text-xs text-[#7bd0ff] font-bold uppercase tracking-wider">
-                    STATISTICALLY SIGNIFICANT SHIFT (p &lt; 0.001)
-                  </span>
-                </div>
-              </div>
-
-              {/* Chart Canvas */}
-              <div className="w-full bg-[#0a0e18] p-4 rounded border border-[#262a35] relative">
-                <div className="absolute top-4 right-4 flex flex-col items-end gap-1 font-caption-mono text-xs pointer-events-none">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-[#a08e7a] inline-block"></span>
-                    <span className="text-[#d8c3ad]">Baseline Era (2002–2012) [MODIS]</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-[#ffc174] inline-block"></span>
-                    <span className="text-[#ffc174] font-bold">Recent Era (2015–2025) [Harmonized]</span>
-                  </div>
-                </div>
-
-                <svg className="w-full h-72 select-none" preserveAspectRatio="none" viewBox="0 0 800 300">
-                  <line stroke="#262a35" strokeDasharray="3,3" x1="0" x2="800" y1="75" y2="75"></line>
-                  <line stroke="#262a35" strokeDasharray="3,3" x1="0" x2="800" y1="150" y2="150"></line>
-                  <line stroke="#262a35" strokeDasharray="3,3" x1="0" x2="800" y1="225" y2="225"></line>
-                  {/* Baseline curve */}
-                  <path d="M 0,290 Q 200,285 350,250 T 520,60 T 800,15" fill="none" stroke="#a08e7a" strokeDasharray="5,3" strokeWidth="2"></path>
-                  {/* Shifted Recent curve */}
-                  <path d="M 0,290 Q 150,280 280,210 T 450,40 T 800,10" fill="none" stroke="#ffc174" strokeWidth="3"></path>
-                  {/* 10% Onset line */}
-                  <line stroke="#7bd0ff" strokeDasharray="2,2" x1="280" x2="280" y1="0" y2="300"></line>
-                  <circle cx="280" cy="210" fill="#7bd0ff" r="5"></circle>
-                  {/* 90% Cessation line */}
-                  <line stroke="#ff938c" strokeDasharray="2,2" x1="560" x2="560" y1="0" y2="300"></line>
-                  <circle cx="560" cy="35" fill="#ff938c" r="5"></circle>
-                </svg>
-
-                <div className="flex justify-between font-caption-mono text-xs text-[#a08e7a] pt-2 border-t border-[#262a35]">
-                  <span>DOY 100 (APR)</span>
-                  <span>DOY 160 (JUN 09 - Onset)</span>
-                  <span className="text-[#ffc174] font-bold">DOY 220 (AUG - Max FRP Peak)</span>
-                  <span>DOY 285 (OCT - Cessation)</span>
-                  <span>DOY 320 (NOV)</span>
-                </div>
-              </div>
-            </div>
+        {/* LOADING */}
+        {activeTab === 'shift' && loading && (
+          <div className="p-4 bg-[#1c1f2a] border border-[#262a35] rounded text-[#7bd0ff] font-caption-mono text-sm">
+            <span className="material-symbols-outlined align-middle mr-2 animate-spin">
+              progress_activity
+            </span>
+            Loading Season Shift data from TerraFlare API...
           </div>
         )}
 
+        {/* ERROR */}
+        {activeTab === 'shift' && error && (
+          <div className="p-4 bg-[#1c1f2a] border border-[#ff938c] rounded text-[#ff938c]">
+            <div className="font-bold mb-2">
+              Unable to load Season Shift data
+            </div>
+
+            <p className="text-sm">{error}</p>
+
+            <button
+              onClick={() => {
+                setSeasonData(null);
+                setActiveTab('memory');
+                setTimeout(() => setActiveTab('shift'), 0);
+              }}
+              className="mt-3 px-3 py-2 bg-[#313540] rounded text-xs"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* SEASON SHIFT */}
+        {activeTab === 'shift' && !loading && !error && seasonData && (
+          <div className="flex flex-col gap-6">
+
+            {/* DATA PERIOD */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs font-caption-mono text-[#a08e7a]">
+                BASELINE: {baseline?.[0]}–{baseline?.[1]}
+                <span className="mx-2">|</span>
+                RECENT: {recent?.[0]}–{recent?.[1]}
+              </div>
+
+              <span className="px-3 py-1.5 rounded bg-[#0a0e18] border border-[#262a35] text-[#7bd0ff] font-caption-mono text-xs">
+                API RESPONSE RECEIVED
+              </span>
+            </div>
+
+            {/* STATISTICS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+              {/* ONSET */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-caption-mono text-[10px] text-[#7bd0ff] uppercase tracking-wider">
+                    PHENOLOGICAL ONSET
+                  </span>
+                </div>
+
+                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">
+                  Season Onset Shift
+                </span>
+
+                <div className="my-2 flex items-baseline gap-1.5">
+                  <span className="font-mono-metric-lg text-2xl font-bold text-[#ffc174]">
+                    {formatValue(onsetShift)}
+                  </span>
+                  <span className="font-label-mono text-xs text-[#ffc174] uppercase">
+                    days
+                  </span>
+                </div>
+
+                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
+                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
+                    95% Confidence Interval:
+                    <br />
+                    <span className="text-[#7bd0ff] font-mono">
+                      [
+                      {formatValue(comparison?.onset_shift_days.ci[0])},{' '}
+                      {formatValue(comparison?.onset_shift_days.ci[1])}
+                      ]
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* PEAK */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-caption-mono text-[10px] text-[#ffc174] uppercase tracking-wider">
+                    PEAK CHANGE
+                  </span>
+                </div>
+
+                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">
+                  Season Peak Change
+                </span>
+
+                <div className="my-2 flex items-baseline gap-1.5">
+                  <span className="font-mono-metric-lg text-2xl font-bold text-[#f59e0b]">
+                    {formatValue(peakChange)}
+                  </span>
+                  <span className="font-label-mono text-xs text-[#f59e0b] uppercase">
+                    reported change
+                  </span>
+                </div>
+
+                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
+                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
+                    Peak month change reported by the backend analysis.
+                    No independent significance claim is made here.
+                  </p>
+                </div>
+              </div>
+
+              {/* END */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-caption-mono text-[10px] text-[#7bd0ff] uppercase tracking-wider">
+                    SEASON CESSATION
+                  </span>
+                </div>
+
+                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">
+                  Season End Shift
+                </span>
+
+                <div className="my-2 flex items-baseline gap-1.5">
+                  <span className="font-mono-metric-lg text-2xl font-bold text-[#7bd0ff]">
+                    {formatValue(endShift)}
+                  </span>
+                  <span className="font-label-mono text-xs text-[#7bd0ff] uppercase">
+                    days
+                  </span>
+                </div>
+
+                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
+                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
+                    95% Confidence Interval:
+                    <br />
+                    <span className="text-[#7bd0ff] font-mono">
+                      [
+                      {formatValue(comparison?.end_shift_days.ci[0])},{' '}
+                      {formatValue(comparison?.end_shift_days.ci[1])}
+                      ]
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* EVIDENCE */}
+              <div className="bg-[#1c1f2a] border border-[#262a35] p-4 rounded shadow-md relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-caption-mono text-[10px] text-[#ffb4ab] uppercase tracking-wider">
+                    STATISTICAL EVIDENCE
+                  </span>
+                </div>
+
+                <span className="font-headline-sm text-sm font-bold text-[#dfe2f1]">
+                  Evidence Assessment
+                </span>
+
+                <div className="my-2">
+                  <span className="font-mono-metric-lg text-lg font-bold text-[#ffc174]">
+                    {comparison?.evidence
+                      ? comparison.evidence.replaceAll('_', ' ').toUpperCase()
+                      : 'N/A'}
+                  </span>
+                </div>
+
+                <div className="bg-[#0a0e18] p-2 rounded border border-[#262a35]">
+                  <p className="font-caption-mono text-[11px] text-[#d8c3ad] leading-tight">
+                    Evidence classification returned by the backend analysis.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+            {/* YEARLY DATA */}
+            <div className="bg-[#1c1f2a] border border-[#262a35] p-5 rounded-lg shadow-md">
+
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="font-headline-sm text-base font-bold text-[#dfe2f1]">
+                    Annual Fire Season Milestones
+                  </h3>
+
+                  <p className="font-body-sm text-xs text-[#d8c3ad] mt-1">
+                    Annual onset, peak and cessation dates returned by the
+                    harmonized satellite analysis.
+                  </p>
+                </div>
+
+                <span className="px-3 py-1.5 rounded bg-[#0a0e18] border border-[#262a35] text-[#7bd0ff] font-caption-mono text-xs">
+                  {seasonData.years.length} YEARS
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[#262a35] text-[#7bd0ff] font-caption-mono">
+                      <th className="py-3 px-3">YEAR</th>
+                      <th className="py-3 px-3">ONSET</th>
+                      <th className="py-3 px-3">PEAK</th>
+                      <th className="py-3 px-3">END</th>
+                      <th className="py-3 px-3">LENGTH</th>
+                      <th className="py-3 px-3">SENSORS</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {seasonData.years.map((year) => (
+                      <tr
+                        key={year.year}
+                        className="border-b border-[#262a35] text-[#dfe2f1] hover:bg-[#262a35]/50"
+                      >
+                        <td className="py-3 px-3 font-bold font-mono">
+                          {year.year}
+                        </td>
+                        <td className="py-3 px-3">{year.onset}</td>
+                        <td className="py-3 px-3 text-[#ffc174]">
+                          {year.peak}
+                        </td>
+                        <td className="py-3 px-3">{year.end}</td>
+                        <td className="py-3 px-3 font-mono">
+                          {year.length_days} days
+                        </td>
+                        <td className="py-3 px-3">
+                          {year.sensor_mix.join(', ')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* COMPARISON PERIODS */}
+            <div className="bg-[#1c1f2a] border border-[#262a35] p-5 rounded-lg shadow-md">
+              <h3 className="font-headline-sm text-base font-bold text-[#dfe2f1] mb-3">
+                Season Comparison
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-[#0a0e18] p-4 rounded border border-[#262a35]">
+                  <p className="text-[#a08e7a] font-caption-mono text-xs mb-2">
+                    BASELINE PERIOD
+                  </p>
+                  <p className="text-[#dfe2f1] text-xl font-bold font-mono">
+                    {baseline?.[0]} – {baseline?.[1]}
+                  </p>
+                </div>
+
+                <div className="bg-[#0a0e18] p-4 rounded border border-[#262a35]">
+                  <p className="text-[#a08e7a] font-caption-mono text-xs mb-2">
+                    RECENT PERIOD
+                  </p>
+                  <p className="text-[#dfe2f1] text-xl font-bold font-mono">
+                    {recent?.[0]} – {recent?.[1]}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* FIRE MEMORY */}
         {activeTab === 'memory' && (
           <div className="bg-[#1c1f2a] border border-[#262a35] p-5 rounded-lg shadow-md flex flex-col gap-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#262a35]">
               <div>
-                <h3 className="font-title-md text-base font-bold text-[#dfe2f1]">Spatial Fire Memory &amp; Reoccurrence Map</h3>
-                <span className="font-caption-mono text-xs text-[#a08e7a]">Classifying H3 cells into persistent, emerging, declining, or sporadic activity</span>
+                <h3 className="font-title-md text-base font-bold text-[#dfe2f1]">
+                  Spatial Fire Memory &amp; Reoccurrence Map
+                </h3>
+                <span className="font-caption-mono text-xs text-[#a08e7a]">
+                  Classifying H3 cells into persistent, emerging, declining,
+                  or sporadic activity
+                </span>
               </div>
+
               <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#7bd0ff] font-caption-mono text-xs font-bold">
-                10-YEAR MULTI-SENSOR RECURRENCE
+                MULTI-YEAR RECURRENCE
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-3.5 bg-[#171b26] rounded border border-[#262a35]">
-                <div className="flex items-center gap-1.5 text-[#ffc174] font-bold font-caption-mono text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ffc174]"></span>Persistent (≥70% Yrs)
-                </div>
-                <div className="text-xl font-bold font-mono text-[#dfe2f1] mt-1">1,420 cells</div>
-                <p className="text-[11px] text-[#a08e7a] mt-1">High annual recurrence with stationary trend.</p>
-              </div>
-              <div className="p-3.5 bg-[#171b26] rounded border border-[#262a35]">
-                <div className="flex items-center gap-1.5 text-[#ff938c] font-bold font-caption-mono text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ff938c]"></span>Emerging Hotspots
-                </div>
-                <div className="text-xl font-bold font-mono text-[#dfe2f1] mt-1">680 cells</div>
-                <p className="text-[11px] text-[#a08e7a] mt-1">Low early recurrence with sharp recent expansion.</p>
-              </div>
-              <div className="p-3.5 bg-[#171b26] rounded border border-[#262a35]">
-                <div className="flex items-center gap-1.5 text-[#7bd0ff] font-bold font-caption-mono text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#7bd0ff]"></span>Declining Activity
-                </div>
-                <div className="text-xl font-bold font-mono text-[#dfe2f1] mt-1">490 cells</div>
-                <p className="text-[11px] text-[#a08e7a] mt-1">Previously active with falling recent detection rates.</p>
-              </div>
-              <div className="p-3.5 bg-[#171b26] rounded border border-[#262a35]">
-                <div className="flex items-center gap-1.5 text-[#dfe2f1] font-bold font-caption-mono text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#313540]"></span>Sporadic Detections
-                </div>
-                <div className="text-xl font-bold font-mono text-[#dfe2f1] mt-1">3,110 cells</div>
-                <p className="text-[11px] text-[#a08e7a] mt-1">Isolated seasonal detections across years.</p>
-              </div>
-            </div>
+
+            <p className="text-sm text-[#d8c3ad]">
+              Fire Memory API integration is pending. Live data will appear
+              here after connecting the Fire Memory endpoints.
+            </p>
           </div>
         )}
 
+        {/* ANOMALY */}
         {activeTab === 'anomaly' && (
           <div className="bg-[#1c1f2a] border border-[#262a35] p-5 rounded-lg shadow-md flex flex-col gap-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#262a35]">
               <div>
-                <h3 className="font-title-md text-base font-bold text-[#dfe2f1]">Explainable Wildfire Anomaly Engine</h3>
-                <span className="font-caption-mono text-xs text-[#a08e7a]">Robust Z-score and MAD excess decomposition by date and cell</span>
+                <h3 className="font-title-md text-base font-bold text-[#dfe2f1]">
+                  Explainable Wildfire Anomaly Engine
+                </h3>
+                <span className="font-caption-mono text-xs text-[#a08e7a]">
+                  Robust Z-score and MAD excess decomposition by date and cell
+                </span>
               </div>
-              <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#ffc174] font-caption-mono text-xs font-bold">
-                ROBUST Z: +3.84 (EXTREME)
-              </span>
             </div>
-            <div className="p-4 bg-[#0a0e18] rounded border border-[#262a35] font-caption-mono text-xs text-[#dfe2f1]">
-              <span className="text-[#ffc174] font-bold">EXPLANATION SUMMARY:</span>
-              <p className="mt-1 text-[#d8c3ad] leading-relaxed">
-                Activity in the selected target period (2024-W33) was 3.84 times the historical baseline median (2000–2023). 14 spatial cells accounted for 74.2% of the total radiative excess, driven primarily by intense thermal detections recorded on August 16–18.
-              </p>
-            </div>
+
+            <p className="text-sm text-[#d8c3ad]">
+              Anomaly API integration is pending. Live anomaly results will
+              appear here after connecting the Anomaly endpoints.
+            </p>
           </div>
         )}
 
+        {/* EVENTS AND EXPOSURE */}
         {activeTab === 'cluster' && (
           <div className="bg-[#1c1f2a] border border-[#262a35] p-5 rounded-lg shadow-md flex flex-col gap-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#262a35]">
               <div>
-                <h3 className="font-title-md text-base font-bold text-[#dfe2f1]">Activity Episode Clustering &amp; Exposure</h3>
-                <span className="font-caption-mono text-xs text-[#a08e7a]">DBSCAN spatiotemporal clustering with asset proximity buffers</span>
+                <h3 className="font-title-md text-base font-bold text-[#dfe2f1]">
+                  Activity Episode Clustering &amp; Exposure
+                </h3>
+                <span className="font-caption-mono text-xs text-[#a08e7a]">
+                  DBSCAN spatiotemporal clustering with asset proximity buffers
+                </span>
               </div>
+
               <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#a08e7a] font-caption-mono text-xs">
-                EPS: 1.5 KM • MIN SAMPLES: 8
+                EVENT INTELLIGENCE
               </span>
             </div>
+
             <p className="font-body-sm text-xs text-[#d8c3ad]">
-              Clusters represent spatiotemporally grouped active fire detections (activity episodes), not verified burn perimeters. Exposure metrics denote geographical proximity within configured buffer zones (1km, 5km, 10km).
+              Clusters represent spatiotemporally grouped active fire
+              detections (activity episodes), not verified burn perimeters.
+              Exposure metrics denote geographical proximity within
+              configured buffer zones.
+            </p>
+
+            <p className="text-sm text-[#d8c3ad]">
+              Events and Exposure API integration is pending.
             </p>
           </div>
         )}
+
       </div>
     </div>
   );

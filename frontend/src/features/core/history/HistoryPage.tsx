@@ -1,24 +1,168 @@
-import { useState } from 'react';
-import ExportButton from '../export/ExportButton';
 
-const yearsData = [
-  { year: 2018, harmonized: 118400, modis: 42100, viirs: 98000, ci: [112000, 124000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2019, harmonized: 122100, modis: 43500, viirs: 101200, ci: [116000, 128000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2020, harmonized: 148900, modis: 49800, viirs: 124500, ci: [141000, 156000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2021, harmonized: 154200, modis: 51200, viirs: 129800, ci: [146000, 162000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2022, harmonized: 124500, modis: 41800, viirs: 99400, ci: [118000, 131000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2023, harmonized: 148900, modis: 49500, viirs: 121000, ci: [141000, 156000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2024, harmonized: 158400, modis: 52100, viirs: 132400, ci: [150000, 166000], sensorMix: 'MODIS + VIIRS' },
-  { year: 2025, harmonized: 142890, modis: 48320, viirs: 118450, ci: [138770, 147010], sensorMix: 'MODIS + VIIRS' },
+import { useEffect, useMemo, useState } from 'react';
+import ExportButton from '../export/ExportButton';
+import {
+  getHistoryYearly,
+  getHistoryMonthly,
+  getRegions,
+} from '../../../api/core';
+
+type YearlyData = Awaited<ReturnType<typeof getHistoryYearly>>['data'];
+type MonthlyData = Awaited<ReturnType<typeof getHistoryMonthly>>['data'];
+type RegionsData = Awaited<ReturnType<typeof getRegions>>['data'];
+
+type SensorView = 'harmonized' | 'all';
+
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
+
+const formatNumber = (value: number | null | undefined) =>
+  value == null ? '—' : Math.round(value).toLocaleString('en-IN');
+
+const formatCompact = (value: number | null | undefined) => {
+  if (value == null) return '—';
+  if (Math.abs(value) >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}k`;
+  }
+  return value.toFixed(0);
+};
 
 export default function HistoryPage() {
   const [selectedRegion, setSelectedRegion] = useState('pwn');
-  const [selectedSensorView, setSelectedSensorView] = useState<'harmonized' | 'all'>('harmonized');
+  const [selectedSensorView, setSelectedSensorView] =
+    useState<SensorView>('harmonized');
+
+  const [yearly, setYearly] = useState<YearlyData | null>(null);
+  const [monthly, setMonthly] = useState<MonthlyData | null>(null);
+  const [regions, setRegions] = useState<RegionsData['regions']>([]);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadData() {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const [regionResponse, yearlyResponse, monthlyResponse] =
+          await Promise.all([
+            getRegions(),
+            getHistoryYearly({ region_id: selectedRegion }),
+            getHistoryMonthly({ region_id: selectedRegion }),
+          ]);
+
+        if (cancelled) return;
+
+        setRegions(regionResponse.data.regions);
+        setYearly(yearlyResponse.data);
+        setMonthly(monthlyResponse.data);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error('Failed to load historical data:', err);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to load historical data.'
+        );
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRegion, reloadKey]);
+
+  const annualRows = yearly?.years ?? [];
+  const monthlyRows = monthly?.matrix ?? [];
+
+  const firstYear = annualRows[0]?.year;
+  const lastYear = annualRows.length
+    ? annualRows[annualRows.length - 1].year
+    : undefined;
+
+  const meanActivity = useMemo(() => {
+    if (!annualRows.length) return null;
+
+    const total = annualRows.reduce(
+      (sum, row) => sum + row.harmonized_value,
+      0
+    );
+
+    return total / annualRows.length;
+  }, [annualRows]);
+
+  const chartMaximum = useMemo(() => {
+    if (!annualRows.length) return 1;
+
+    if (selectedSensorView === 'harmonized') {
+      return Math.max(
+        1,
+        ...annualRows.map((row) => row.harmonized_value)
+      ) * 1.2;
+    }
+
+    return Math.max(
+      1,
+      ...annualRows.flatMap((row) => [
+        row.modis_observed,
+        row.viirs_observed,
+      ])
+    ) * 1.2;
+  }, [annualRows, selectedSensorView]);
+
+  const monthlyMaximum = useMemo(() => {
+    if (!monthlyRows.length) return 1;
+
+    return Math.max(
+      1,
+      ...monthlyRows.map((row) => row.harmonized_value)
+    );
+  }, [monthlyRows]);
+
+  const monthlyByYear = useMemo(() => {
+    const result = new Map<number, Map<number, (typeof monthlyRows)[number]>>();
+
+    for (const row of monthlyRows) {
+      if (!result.has(row.year)) {
+        result.set(row.year, new Map());
+      }
+
+      result.get(row.year)?.set(row.month, row);
+    }
+
+    return result;
+  }, [monthlyRows]);
+
+  const regionName =
+    regions.find((region) => region.region_id === selectedRegion)?.name ??
+    selectedRegion;
+
+  const exportStartDate = firstYear
+    ? `${firstYear}-01-01`
+    : '2020-01-01';
+
+  const exportEndDate = lastYear
+    ? `${lastYear}-12-31`
+    : '2025-12-31';
 
   return (
     <div className="flex flex-col w-full pb-16">
-      {/* Top Telemetry Header */}
+      {/* Header */}
       <section className="w-full px-6 py-6 bg-[#0a0e18] border-b border-[#1F2937]">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div className="space-y-1.5 max-w-4xl">
@@ -26,35 +170,67 @@ export default function HistoryPage() {
               <span className="px-2 py-0.5 rounded bg-[#1c1f2a] text-[#7bd0ff] font-caption-mono text-[10px] uppercase tracking-wider font-semibold">
                 LONGITUDINAL CLIMATOLOGY
               </span>
-              <span className="text-[#a08e7a] font-caption-mono text-xs">/</span>
-              <span className="font-caption-mono text-xs text-[#ffc174]">2000–2025 HARMONIZED TIME SERIES</span>
+
+              <span className="text-[#a08e7a] font-caption-mono text-xs">
+                /
+              </span>
+
+              <span className="font-caption-mono text-xs text-[#ffc174]">
+                HISTORICAL TIME SERIES
+              </span>
             </div>
+
             <h1 className="font-headline-lg text-2xl lg:text-3xl font-bold text-[#dfe2f1] tracking-tight">
               Historical Year-Wise &amp; Month-Wise Analysis
             </h1>
+
             <p className="font-body-md text-xs sm:text-sm text-[#d8c3ad] max-w-3xl leading-relaxed">
-              Long-term annual totals and year-by-month matrices on a unified scale. Raw satellite observations are reconciled across the 2012 constellation transition (from single-sensor MODIS Aqua/Terra to dual MODIS + VIIRS).
+              Explore annual harmonized activity and monthly climatological
+              patterns using the available MODIS and VIIRS historical data.
+              Sensor observations are displayed separately from harmonized
+              estimates.
             </p>
           </div>
+
           <div className="flex items-center gap-3">
-            <ExportButton dataset="monthly" regionId={selectedRegion} />
+            <ExportButton
+              dataset="monthly"
+              regionId={selectedRegion}
+              startDate={exportStartDate}
+              endDate={exportEndDate}
+            />
           </div>
         </div>
 
-        {/* Filter Strip */}
+        {/* Filters */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-5 border-t border-[#262a35] mt-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#171b26] rounded border border-[#262a35]">
-              <span className="material-symbols-outlined text-[#7bd0ff] text-sm">location_on</span>
+              <span className="material-symbols-outlined text-[#7bd0ff] text-sm">
+                location_on
+              </span>
+
               <select
                 value={selectedRegion}
                 onChange={(e) => setSelectedRegion(e.target.value)}
                 className="bg-transparent font-label-mono text-xs text-[#dfe2f1] focus:outline-none cursor-pointer"
+                disabled={isLoading && regions.length === 0}
               >
-                <option className="bg-[#171b26]" value="pwn">Western North America (PacNW)</option>
-                <option className="bg-[#171b26]" value="amz">Amazon Basin Arc</option>
-                <option className="bg-[#171b26]" value="sib">Siberian Boreal Zone</option>
-                <option className="bg-[#171b26]" value="aus">SE Australia Eurobodalla</option>
+                {regions.length === 0 && (
+                  <option value="pwn" className="bg-[#171b26]">
+                    Western North America (PacNW)
+                  </option>
+                )}
+
+                {regions.map((region) => (
+                  <option
+                    key={region.region_id}
+                    value={region.region_id}
+                    className="bg-[#171b26]"
+                  >
+                    {region.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -70,6 +246,7 @@ export default function HistoryPage() {
               >
                 Harmonized Index (HAI)
               </button>
+
               <button
                 onClick={() => setSelectedSensorView('all')}
                 className={`px-3 py-1 rounded font-label-mono text-xs font-semibold transition-all ${
@@ -85,131 +262,429 @@ export default function HistoryPage() {
           </div>
 
           <div className="flex items-center gap-2 font-caption-mono text-xs text-[#a08e7a]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]"></span>
-            <span>Sensor Mix: Calibrated Post-2012</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+            <span>{regionName}</span>
           </div>
         </div>
       </section>
 
-      {/* Main Analysis Bento Grid */}
-      <div className="w-full px-6 py-6 space-y-6">
-        {/* Annual Totals Bar Chart */}
-        <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
-          <div className="flex items-center justify-between pb-3 border-b border-[#262a35] mb-4">
-            <div>
-              <h2 className="font-title-md text-base font-bold text-[#dfe2f1]">Annual Harmonized Activity (2018–2025)</h2>
-              <span className="font-caption-mono text-xs text-[#a08e7a]">Total calibrated thermal energy equivalent per calendar year with 95% bootstrap intervals</span>
-            </div>
-            <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#ffc174] font-caption-mono text-xs font-bold">
-              MEAN: 139,800 eq/yr
+      {/* Loading */}
+      {isLoading && (
+        <div className="px-6 py-20 flex flex-col items-center gap-3 text-[#a08e7a]">
+          <span className="material-symbols-outlined animate-spin text-3xl text-[#f59e0b]">
+            progress_activity
+          </span>
+          <p className="font-caption-mono text-xs">
+            LOADING HISTORICAL DATA...
+          </p>
+        </div>
+      )}
+
+      {/* Error */}
+      {!isLoading && error && (
+        <div className="mx-6 mt-6 p-5 rounded-lg border border-red-500/30 bg-red-500/5">
+          <div className="flex items-center gap-2 text-red-400 mb-2">
+            <span className="material-symbols-outlined">error</span>
+            <span className="font-label-mono text-sm font-bold">
+              HISTORICAL DATA UNAVAILABLE
             </span>
           </div>
 
-          {/* SVG Bar Chart */}
-          <div className="w-full h-64 bg-[#0a0e18] rounded p-4 relative flex flex-col justify-end border border-[#262a35]">
-            <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 600 200">
-              <line stroke="#262a35" strokeDasharray="3,3" x1="0" x2="600" y1="50" y2="50"></line>
-              <line stroke="#262a35" strokeDasharray="3,3" x1="0" x2="600" y1="100" y2="100"></line>
-              <line stroke="#262a35" strokeDasharray="3,3" x1="0" x2="600" y1="150" y2="150"></line>
+          <p className="text-sm text-[#d8c3ad] mb-4">{error}</p>
 
-              {yearsData.map((y, idx) => {
-                const x = 30 + idx * 70;
-                const barHeight = (y.harmonized / 180000) * 160;
-                const yPos = 180 - barHeight;
-
-                return (
-                  <g key={y.year}>
-                    {/* Error bar */}
-                    <line
-                      stroke="#ffc174"
-                      strokeWidth="1.5"
-                      x1={x + 18}
-                      x2={x + 18}
-                      y1={180 - (y.ci[1] / 180000) * 160}
-                      y2={180 - (y.ci[0] / 180000) * 160}
-                    ></line>
-                    {/* Bar */}
-                    <rect
-                      x={x}
-                      y={yPos}
-                      width="36"
-                      height={barHeight}
-                      rx="2"
-                      fill="#f59e0b"
-                      opacity="0.85"
-                      className="hover:opacity-100 transition-opacity cursor-pointer"
-                    ></rect>
-                    {/* Year Label */}
-                    <text x={x + 6} y="196" fill="#a08e7a" fontSize="10" fontFamily="JetBrains Mono">
-                      {y.year}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          <div className="flex items-center justify-between pt-3 font-caption-mono text-xs text-[#a08e7a]">
-            <span>Baseline Period: 2002–2020</span>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-[#ffc174]">
-                <span className="w-3 h-3 rounded-xs bg-[#f59e0b] inline-block"></span>Harmonized Total
-              </span>
-              <span className="flex items-center gap-1.5 text-[#a08e7a]">
-                <span className="w-2 h-0.5 bg-[#ffc174] inline-block"></span>95% Bootstrap Range
-              </span>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setReloadKey((value) => value + 1)}
+            className="px-4 py-2 rounded bg-[#f59e0b] text-[#0B0F19] text-xs font-bold"
+          >
+            Retry
+          </button>
         </div>
+      )}
 
-        {/* Year-by-Month Climatological Matrix */}
-        <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
-          <div className="flex items-center justify-between pb-3 border-b border-[#262a35] mb-4">
-            <div>
-              <h2 className="font-title-md text-base font-bold text-[#dfe2f1]">Year × Month Radiance Climatology Heatmap</h2>
-              <span className="font-caption-mono text-xs text-[#a08e7a]">Monthly aggregated harmonized thermal activity across years</span>
+      {/* Analysis */}
+      {!isLoading && !error && (
+        <div className="w-full px-6 py-6 space-y-6">
+          {/* Annual Chart */}
+          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262a35] mb-4">
+              <div>
+                <h2 className="font-title-md text-base font-bold text-[#dfe2f1]">
+                  {selectedSensorView === 'harmonized'
+                    ? 'Annual Harmonized Activity'
+                    : 'Annual Sensor Observation Counts'}
+                </h2>
+
+                <span className="font-caption-mono text-xs text-[#a08e7a]">
+                  {firstYear && lastYear
+                    ? `${firstYear}–${lastYear}`
+                    : 'Available historical period'}
+                </span>
+              </div>
+
+              {selectedSensorView === 'harmonized' && meanActivity !== null && (
+                <span className="px-2.5 py-1 rounded bg-[#0a0e18] text-[#ffc174] font-caption-mono text-xs font-bold">
+                  MEAN: {formatCompact(meanActivity)} / yr
+                </span>
+              )}
             </div>
-            <span className="font-caption-mono text-xs text-[#7bd0ff]">PEAK AUGUST SURGE VISIBLE</span>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-center font-caption-mono text-xs border-collapse">
-              <thead>
-                <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase">
-                  <th className="py-2 px-3 text-left">Year</th>
-                  {['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'].map((m, i) => (
-                    <th key={i} className="py-2 px-2.5">{m}</th>
-                  ))}
-                  <th className="py-2 px-3 text-right">Annual Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#262a35]">
-                {yearsData.map((row) => (
-                  <tr key={row.year} className="bg-[#171b26] hover:bg-[#262a35]/60 transition-colors">
-                    <td className="py-2.5 px-3 text-left font-bold text-[#dfe2f1]">{row.year}</td>
-                    {Array.from({ length: 12 }).map((_, mIdx) => {
-                      const isAugust = mIdx === 7;
-                      const isSummer = mIdx >= 5 && mIdx <= 8;
-                      const cellBg = isAugust ? 'bg-[#f59e0b] text-[#0B0F19] font-bold' : isSummer ? 'bg-[#ffc174]/40 text-[#dfe2f1]' : 'text-[#a08e7a]';
-                      const val = isAugust ? '48.2k' : isSummer ? '14.1k' : '1.2k';
+            {annualRows.length === 0 ? (
+              <p className="text-center py-16 text-[#a08e7a] text-sm">
+                No annual historical records are available for this region.
+              </p>
+            ) : (
+              <>
+                <div className="w-full min-h-[260px] bg-[#0a0e18] rounded p-4 border border-[#262a35]">
+                  <svg
+                    className="w-full h-64"
+                    preserveAspectRatio="none"
+                    viewBox={`0 0 ${Math.max(800, annualRows.length * 90)} 260`}
+                  >
+                    {[50, 100, 150, 200].map((y) => (
+                      <line
+                        key={y}
+                        stroke="#262a35"
+                        strokeDasharray="3,3"
+                        x1="0"
+                        x2={Math.max(800, annualRows.length * 90)}
+                        y1={y}
+                        y2={y}
+                      />
+                    ))}
+
+                    {annualRows.map((row, index) => {
+                      const groupWidth = Math.max(
+                        50,
+                        760 / annualRows.length
+                      );
+                      const x = 20 + index * groupWidth;
+                      const baseY = 220;
+
+                      if (selectedSensorView === 'harmonized') {
+                        const height =
+                          (row.harmonized_value / chartMaximum) * 180;
+
+                        const lowerY =
+                          row.lower != null
+                            ? baseY - (row.lower / chartMaximum) * 180
+                            : null;
+
+                        const upperY =
+                          row.upper != null
+                            ? baseY - (row.upper / chartMaximum) * 180
+                            : null;
+
+                        return (
+                          <g key={row.year}>
+                            {lowerY !== null && upperY !== null && (
+                              <line
+                                stroke="#ffc174"
+                                strokeWidth="2"
+                                x1={x + 20}
+                                x2={x + 20}
+                                y1={upperY}
+                                y2={lowerY}
+                              />
+                            )}
+
+                            <rect
+                              x={x}
+                              y={baseY - height}
+                              width="40"
+                              height={height}
+                              rx="2"
+                              fill="#f59e0b"
+                              opacity="0.85"
+                            />
+
+                            <text
+                              x={x + 20}
+                              y="245"
+                              fill="#a08e7a"
+                              fontSize="11"
+                              textAnchor="middle"
+                              fontFamily="JetBrains Mono"
+                            >
+                              {row.year}
+                            </text>
+                          </g>
+                        );
+                      }
+
+                      const modisHeight =
+                        (row.modis_observed / chartMaximum) * 180;
+
+                      const viirsHeight =
+                        (row.viirs_observed / chartMaximum) * 180;
+
                       return (
-                        <td key={mIdx} className="py-2 px-1">
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] ${cellBg}`}>
-                            {val}
-                          </span>
-                        </td>
+                        <g key={row.year}>
+                          <rect
+                            x={x}
+                            y={baseY - modisHeight}
+                            width="18"
+                            height={modisHeight}
+                            rx="2"
+                            fill="#7bd0ff"
+                            opacity="0.9"
+                          />
+
+                          <rect
+                            x={x + 21}
+                            y={baseY - viirsHeight}
+                            width="18"
+                            height={viirsHeight}
+                            rx="2"
+                            fill="#f59e0b"
+                            opacity="0.9"
+                          />
+
+                          <text
+                            x={x + 20}
+                            y="245"
+                            fill="#a08e7a"
+                            fontSize="11"
+                            textAnchor="middle"
+                            fontFamily="JetBrains Mono"
+                          >
+                            {row.year}
+                          </text>
+                        </g>
                       );
                     })}
-                    <td className="py-2.5 px-3 text-right font-bold text-[#ffc174] font-mono">
-                      {row.harmonized.toLocaleString()} eq
-                    </td>
+                  </svg>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 font-caption-mono text-xs text-[#a08e7a]">
+                  <span>
+                    {selectedSensorView === 'harmonized'
+                      ? 'Harmonized estimates with available uncertainty intervals'
+                      : 'Raw observation counts shown separately by sensor'}
+                  </span>
+
+                  <div className="flex items-center gap-4">
+                    {selectedSensorView === 'harmonized' ? (
+                      <span className="flex items-center gap-1.5 text-[#ffc174]">
+                        <span className="w-3 h-3 rounded-sm bg-[#f59e0b]" />
+                        Harmonized Total
+                      </span>
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1.5 text-[#7bd0ff]">
+                          <span className="w-3 h-3 rounded-sm bg-[#7bd0ff]" />
+                          MODIS
+                        </span>
+
+                        <span className="flex items-center gap-1.5 text-[#ffc174]">
+                          <span className="w-3 h-3 rounded-sm bg-[#f59e0b]" />
+                          VIIRS
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Annual Data Table */}
+          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+            <div className="pb-3 border-b border-[#262a35] mb-4">
+              <h2 className="font-title-md text-base font-bold text-[#dfe2f1]">
+                Annual Historical Records
+              </h2>
+              <span className="font-caption-mono text-xs text-[#a08e7a]">
+                API-reported annual values and sensor observations
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-caption-mono text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase">
+                    <th className="py-3 px-3">Year</th>
+                    <th className="py-3 px-3 text-right">Harmonized</th>
+                    <th className="py-3 px-3 text-right">Lower</th>
+                    <th className="py-3 px-3 text-right">Upper</th>
+                    <th className="py-3 px-3 text-right">MODIS Raw</th>
+                    <th className="py-3 px-3 text-right">VIIRS Raw</th>
+                    <th className="py-3 px-3 text-right">Sensor Mix</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody className="divide-y divide-[#262a35]">
+                  {annualRows.map((row) => (
+                    <tr
+                      key={row.year}
+                      className="bg-[#171b26] hover:bg-[#262a35]/60"
+                    >
+                      <td className="py-3 px-3 font-bold text-[#dfe2f1]">
+                        {row.year}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#ffc174]">
+                        {formatNumber(row.harmonized_value)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#a08e7a]">
+                        {formatNumber(row.lower)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#a08e7a]">
+                        {formatNumber(row.upper)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#7bd0ff]">
+                        {formatNumber(row.modis_observed)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#ffc174]">
+                        {formatNumber(row.viirs_observed)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#d8c3ad]">
+                        {row.sensor_mix ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Monthly Heatmap */}
+          <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#262a35] mb-4">
+              <div>
+                <h2 className="font-title-md text-base font-bold text-[#dfe2f1]">
+                  Year × Month Harmonized Activity Heatmap
+                </h2>
+
+                <span className="font-caption-mono text-xs text-[#a08e7a]">
+                  Monthly aggregated harmonized activity across available years
+                </span>
+              </div>
+
+              <span className="font-caption-mono text-xs text-[#7bd0ff]">
+                {monthlyRows.length} MONTHLY RECORDS
+              </span>
+            </div>
+
+            {monthlyRows.length === 0 ? (
+              <p className="text-center py-12 text-[#a08e7a] text-sm">
+                No monthly records are available for this region.
+              </p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center font-caption-mono text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase">
+                        <th className="py-2 px-3 text-left">Year</th>
+
+                        {MONTHS.map((month) => (
+                          <th key={month} className="py-2 px-2">
+                            {month}
+                          </th>
+                        ))}
+
+                        <th className="py-2 px-3 text-right">Annual Total</th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-[#262a35]">
+                      {Array.from(monthlyByYear.entries())
+                        .sort(([a], [b]) => a - b)
+                        .map(([year, monthMap]) => {
+                          const yearRows = Array.from(monthMap.values());
+
+                          const annualTotal = yearRows.reduce(
+                            (sum, row) => sum + row.harmonized_value,
+                            0
+                          );
+
+                          return (
+                            <tr
+                              key={year}
+                              className="bg-[#171b26] hover:bg-[#262a35]/60"
+                            >
+                              <td className="py-2.5 px-3 text-left font-bold text-[#dfe2f1]">
+                                {year}
+                              </td>
+
+                              {Array.from({ length: 12 }, (_, index) => {
+                                const monthNumber = index + 1;
+                                const value = monthMap.get(monthNumber);
+
+                                if (!value) {
+                                  return (
+                                    <td
+                                      key={monthNumber}
+                                      className="py-2 px-1"
+                                    >
+                                      <span className="inline-block w-full rounded bg-[#262a35]/50 text-[#666] px-1 py-1">
+                                        —
+                                      </span>
+                                    </td>
+                                  );
+                                }
+
+                                const intensity = Math.max(
+                                  0.12,
+                                  value.harmonized_value / monthlyMaximum
+                                );
+
+                                return (
+                                  <td
+                                    key={monthNumber}
+                                    className="py-2 px-1"
+                                    title={`${MONTHS[index]} ${year}: ${formatNumber(value.harmonized_value)}${value.is_partial ? ' (partial)' : ''}`}
+                                  >
+                                    <span
+                                      className="inline-block px-1.5 py-1 rounded text-[10px] text-[#0B0F19] font-bold"
+                                      style={{
+                                        backgroundColor: `rgba(245, 158, 11, ${Math.min(1, intensity)})`,
+                                      }}
+                                    >
+                                      {formatCompact(value.harmonized_value)}
+                                    </span>
+
+                                    {value.is_partial && (
+                                      <span className="block text-[8px] text-[#7bd0ff] mt-0.5">
+                                        PARTIAL
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+
+                              <td className="py-2.5 px-3 text-right font-bold text-[#ffc174]">
+                                {formatNumber(annualTotal)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-4 text-[#a08e7a] font-caption-mono text-[10px]">
+                  <span>
+                    Brighter cells indicate higher harmonized activity.
+                  </span>
+                  <span>
+                    — = No monthly record available
+                  </span>
+                  <span>
+                    PARTIAL = Incomplete period
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
