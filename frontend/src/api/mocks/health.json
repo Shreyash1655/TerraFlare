@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "api_version": "v1",
+    "data_version": "v2026.11.13-r1",
+    "data_mode": "fixture",
+    "is_synthetic": true,
+    "method_id": "M2-Stratified-Ratio",
+    "generated_at": "2026-11-07T00:00:00Z",
+    "parameters": { "region_id": "pwn" },
+    "limitations": ["Synthetic benchmark fixture active"]
+  },
+  "data": {
+    "status": "ok",
+    "data_mode": "fixture",
+    "data_version": "v2026.11.13-r1",
+    "dataset_range": {
+      "start": "2020-01-01",
+      "end": "2025-12-31"
+    },
+    "is_synthetic": true
+  }
+}
+

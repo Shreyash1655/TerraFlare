@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "api_version": "v1",
+    "data_version": "v2026.11.13-r1",
+    "data_mode": "fixture",
+    "is_synthetic": true,
+    "generated_at": "2026-11-07T00:00:00Z"
+  },
+  "data": {
+    "sensors": ["MODIS", "VIIRS"],
+    "optional_fields": {
+      "frp": true,
+      "confidence": true,
+      "day_night": true,
+      "platform": true
+    },
+    "features_enabled": ["season-shift", "anomaly", "quality", "fire-memory"],
+    "h3_resolution": 7
+  }
+}
+

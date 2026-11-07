@@ -1,0 +1,53 @@
+:root {
+  --surface: #0f131d;
+  --surface-dim: #0f131d;
+  --surface-bright: #353944;
+  --surface-container-lowest: #0a0e18;
+  --surface-container-low: #171b26;
+  --surface-container: #1c1f2a;
+  --surface-container-high: #262a35;
+  --surface-container-highest: #313540;
+  --on-surface: #dfe2f1;
+  --on-surface-variant: #d8c3ad;
+  --primary: #ffc174;
+  --primary-container: #f59e0b;
+  --secondary: #7bd0ff;
+  --secondary-container: #00a6e0;
+  --tertiary: #ffbcb7;
+  --error: #ffb4ab;
+  --outline: #a08e7a;
+  --outline-variant: #534434;
+
+  --sans: "Geist", system-ui, -apple-system, sans-serif;
+  --heading: "Space Grotesk", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--sans);
+  overscroll-behavior: none;
+}
+
+/* Custom scrollbar for data panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f131d;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
