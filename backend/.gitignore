@@ -1,9 +1,21 @@
+# Python
 .venv/
 __pycache__/
 *.py[cod]
+*.pyo
+
+# Environment & secrets
 .env
+
+# Data (never commit raw/processed data)
+data/
+
+# Test artefacts
 .pytest_cache/
 .coverage
 htmlcov/
-app/data/processed/*
-!app/data/processed/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp

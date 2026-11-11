@@ -88,9 +88,25 @@ class DataRepository:
         return df
 
     # ------------------------------------------------------------ public API
-    def get_harmonized(self, region_id=None, start=None, end=None) -> pd.DataFrame:
+    def get_harmonized(self, region_id=None, start=None, end=None, series="harmonized") -> pd.DataFrame:
         """harmonized_cell_day. Treat the result as read-only."""
-        return self._filter(self._require("harmonized_cell_day"), region_id, start, end)
+        df = self._filter(self._require("harmonized_cell_day"), region_id, start, end)
+        if not df.empty and series != "harmonized":
+            df = df.copy()
+            if series == "viirs_native":
+                df = df[df["acq_date"] >= "2012-01-01"].copy()
+                df["harmonized_value"] = df["viirs_observed"].fillna(0.0)
+                df["harmonized_lower"] = (df["harmonized_value"] * (1.0 - 0.0184)).round(4)
+                df["harmonized_upper"] = (df["harmonized_value"] * (1.0 + 0.0184)).round(4)
+                df["value_type"] = "observed"
+                df["method_id"] = "viirs_native"
+            elif series == "modis_native":
+                df["harmonized_value"] = df["modis_observed"].fillna(0.0)
+                df["harmonized_lower"] = df["harmonized_value"]
+                df["harmonized_upper"] = df["harmonized_value"]
+                df["value_type"] = "observed"
+                df["method_id"] = "modis_native"
+        return df
 
     def get_observations(self, region_id=None, start=None, end=None, sensors=None, valid_only=True) -> pd.DataFrame:
         """obs_clean (point-level)."""

@@ -38,20 +38,27 @@ def assign_h3_cells(
     out["h3_cell"] = None
 
     if valid_mask.any():
-        # Get unique valid pairs to minimize H3 calls
         unique_coords = out.loc[valid_mask, ["lat", "lon"]].drop_duplicates()
-        coord_map = {}
-        for row in unique_coords.itertuples(index=False):
-            try:
-                coord_map[(row.lat, row.lon)] = h3.latlng_to_cell(
-                    float(row.lat), float(row.lon), res
-                )
-            except Exception:
-                continue
-
-        # Apply mapping back to valid rows
-        keys = list(zip(out.loc[valid_mask, "lat"], out.loc[valid_mask, "lon"]))
-        out.loc[valid_mask, "h3_cell"] = [coord_map.get(k) for k in keys]
+        if len(unique_coords) < 1_000_000:
+            coord_map = {}
+            for row in unique_coords.itertuples(index=False):
+                try:
+                    coord_map[(row.lat, row.lon)] = h3.latlng_to_cell(
+                        float(row.lat), float(row.lon), res
+                    )
+                except Exception:
+                    continue
+            out.loc[valid_mask, "h3_cell"] = [
+                coord_map.get((la, lo))
+                for la, lo in zip(out.loc[valid_mask, "lat"], out.loc[valid_mask, "lon"])
+            ]
+        else:
+            # Memory-efficient direct calculation for large datasets (>1M points)
+            lats = out.loc[valid_mask, "lat"].to_numpy(dtype=float)
+            lons = out.loc[valid_mask, "lon"].to_numpy(dtype=float)
+            out.loc[valid_mask, "h3_cell"] = [
+                h3.latlng_to_cell(la, lo, res) for la, lo in zip(lats, lons)
+            ]
 
     # Explicitly ensure invalid/NaN rows remain Python None (object dtype)
     out["h3_cell"] = out["h3_cell"].where(out["h3_cell"].notna(), None)

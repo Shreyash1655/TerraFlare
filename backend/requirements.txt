@@ -7,3 +7,13 @@ scipy
 scikit-learn
 httpx
 pytest
+duckdb
+h3
+statsmodels
+pydantic-settings
+pyyaml
+duckdb
+h3
+statsmodels
+pydantic-settings
+pyyaml

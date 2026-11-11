@@ -1,0 +1,111 @@
+# =============================================================================
+# TerraFlare – harmonization.yaml
+# =============================================================================
+# All harmonisation thresholds live here.  Pipeline code reads this file
+# through app/shared/config_loader.py – nothing is hard-coded in services.
+# =============================================================================
+
+harmonization:
+
+  # H3 resolution used for cell-day aggregation.
+  # Resolution 6 ≈ 36 km average edge length (good for India-scale analysis).
+  h3_resolution: 6
+
+  # Rule for assigning a local solar date to each detection.
+  # "solar"  = use longitude to shift UTC time to approximate local noon.
+  # "utc"    = keep UTC date (use only if temporal precision is unimportant).
+  local_date_rule: solar
+
+  # Harmonisation methods available, in preference order.
+  # The pipeline tries them in this order; the first that meets data
+  # requirements is used.
+  enabled_methods:
+    - identity            # pass-through for single-sensor periods
+    - global_ratio        # simple MODIS/VIIRS global mean ratio
+    - stratified_ratio    # ratio stratified by biome × season
+    - count_regression    # Poisson/NB regression with covariates
+
+  # Reference sensor: harmonised output is expressed in VIIRS-equivalent units.
+  reference_sensor: VIIRS
+
+  # Single VIIRS reference rule (Task 7f):
+  # Never sum VIIRS platforms. Exactly one reference platform per observation period.
+  viirs_reference_rule:
+    priority: ["S-NPP", "NOAA-20", "NOAA-21"]
+    never_sum: true
+
+  # Bootstrap uncertainty estimation parameters.
+  bootstrap:
+    block_days: 7         # block length for block bootstrap (days)
+    reps: 500             # number of bootstrap replicates
+    interval_level: 0.9   # credible-interval level (90 %)
+    random_seed: 42       # deterministic seed for reproducible numbers
+
+  # Size-dependent uncertainty configuration (Task 7f):
+  size_dependent_uncertainty:
+    class_bins:
+      - name: "very_small"
+        min_expected: 0
+        max_expected: 10
+        rel_lower: 1.000
+        rel_upper: 1.220
+      - name: "small"
+        min_expected: 10
+        max_expected: 50
+        rel_lower: 0.717
+        rel_upper: 6.244
+      - name: "medium"
+        min_expected: 50
+        max_expected: 250
+        rel_lower: 0.598
+        rel_upper: 4.401
+      - name: "large"
+        min_expected: 250
+        max_expected: 1000
+        rel_lower: 0.512
+        rel_upper: 2.728
+      - name: "very_large"
+        min_expected: 1000
+        max_expected: 5000
+        rel_lower: 0.440
+        rel_upper: 1.167
+      - name: "macro"
+        min_expected: 5000
+        max_expected: 1000000000
+        rel_lower: 0.125
+        rel_upper: 0.142
+    reliability_thresholds:
+      high_max_rel_halfwidth: 0.20    # half-width <= 20% -> high reliability
+      medium_max_rel_halfwidth: 0.45  # half-width <= 45% -> medium reliability
+      # > 45% -> low reliability
+    bridge_uncertainty_rel: 0.0184    # +/- 1.84% (from 90% CI [0.9853, 1.0221])
+
+  # Minimum confidence class for a detection to enter the harmonisation.
+  # Rows below this threshold are excluded before calibration.
+  min_confidence_class: nominal
+
+  # Months to flag as provisional (NRT data not yet reprocessed).
+  # E.g. 5 means the most recent 5 months of output are marked provisional.
+  provisional_months: 5
+
+  # Static source detection mask configuration.
+  # Builds a fine-grid mask from archive detections of type 2 (static land) or 3 (offshore).
+  static_source_mask:
+    h3_resolution: 8           # fine grid of ~1 km (H3 resolution 8)
+    min_distinct_days: 3       # minimum distinct days with static fire_type
+    min_static_pct: 50.0       # at least 50% of archive detections in cell must be static
+    static_types: [2, 3]       # type 2 (static source) or 3 (offshore)
+
+  # MODIS platform priority rule:
+  # "aqua_preferred": Use Aqua-based prediction when Aqua exists (its overpass is close to VIIRS).
+  # Use Terra-based prediction only when Aqua is absent (period read dynamically from data).
+  modis_platform_rule: aqua_preferred
+
+  # Calibration training universe:
+  # Training universe includes every day of every cell-week with any detection from either sensor.
+  training_universe:
+    include_zero_days: true
+    grains_to_evaluate: ["cell_day", "cell_week"]
+    selection_metric: mae_monthly
+
+

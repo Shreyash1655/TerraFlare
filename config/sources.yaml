@@ -1,0 +1,182 @@
+# =============================================================================
+# TerraFlare – sources.yaml
+# =============================================================================
+# One block per FIRMS source. The adapter field tells the ingestion registry
+# which adapter class to use. All other fields are passed to the adapter.
+#
+# VERIFY markers: kept on confidence thresholds pending NASA documentation verification.
+# Header values and satellite codes confirmed from real FIRMS data exports.
+# =============================================================================
+
+# Default stream filename patterns for all sources
+stream_patterns:
+  SP: "*fire_archive_*.csv"
+  NRT: "*fire_nrt_*.csv"
+
+sources:
+
+  modis_c61:
+    source_id: modis_c61
+    adapter: firms_csv
+    sensor_family: MODIS
+    product_version: "Collection 6.1"
+    processing_stream: SP          # Default fallback stream
+    archive_request_id: "841598"
+
+    # Pattern for raw data files. ${TERRAFLARE_DATA_DIR} is replaced at
+    # runtime with the value of the TERRAFLARE_DATA_DIR env variable.
+    location_pattern: "${TERRAFLARE_DATA_DIR}/raw/firms/841598/*.csv"
+
+    # Stream patterns to determine processing_stream per file
+    stream_patterns:
+      SP: "*fire_archive_*.csv"
+      NRT: "*fire_nrt_*.csv"
+
+    # Maps raw satellite column values to the controlled-vocabulary platform.
+    # Confirmed from real FIRMS headers.
+    platform_map:
+      "Terra":  "Terra"
+      "Aqua":   "Aqua"
+      "T":      "Terra"
+      "A":      "Aqua"
+
+    # Maps raw CSV column names to canonical column names.
+    # Confirmed from real FIRMS headers.
+    field_map:
+      latitude:    lat
+      longitude:   lon
+      acq_date:    acq_date
+      acq_time:    acq_time_utc
+      satellite:   satellite_raw
+      instrument:  instrument_raw
+      confidence:  confidence_raw
+      frp:         frp_mw
+      daynight:    day_night
+      type:        fire_type
+
+    # Maps raw confidence string/int to canonical confidence_class.
+    # MODIS numeric 0-100: low below 30, nominal 30 to 80, high above 80 (VERIFY).
+    confidence_map:
+      type: numeric_range
+      low_threshold: 30       # below 30 is low
+      high_threshold: 80      # above 80 is high
+      low:     [0,  29]       # VERIFY
+      nominal: [30, 80]       # VERIFY
+      high:    [81, 100]      # VERIFY
+
+
+  viirs_snpp:
+    source_id: viirs_snpp
+    adapter: firms_csv
+    sensor_family: VIIRS
+    product_version: "VIIRS C2 (S-NPP)"
+    processing_stream: SP
+    archive_request_id: "841601"
+
+    location_pattern: "${TERRAFLARE_DATA_DIR}/raw/firms/841601/*.csv"
+
+    stream_patterns:
+      SP: "*fire_archive_*.csv"
+      NRT: "*fire_nrt_*.csv"
+
+    # Confirmed from real FIRMS headers.
+    platform_map:
+      "Suomi-NPP": "S-NPP"
+      "SNPP":      "S-NPP"
+      "NPP":       "S-NPP"
+
+    field_map:
+      latitude:    lat
+      longitude:   lon
+      acq_date:    acq_date
+      acq_time:    acq_time_utc
+      satellite:   satellite_raw
+      instrument:  instrument_raw
+      confidence:  confidence_raw
+      frp:         frp_mw
+      daynight:    day_night
+      type:        fire_type
+
+    confidence_map:
+      type: categorical
+      low:     "l"                # VERIFY – some exports use "l"/"n"/"h"
+      nominal: "n"                # VERIFY
+      high:    "h"                # VERIFY
+
+
+  viirs_noaa20:
+    source_id: viirs_noaa20
+    adapter: firms_csv
+    sensor_family: VIIRS
+    product_version: "VIIRS C2 (NOAA-20)"
+    processing_stream: SP
+    archive_request_id: "841599"
+
+    location_pattern: "${TERRAFLARE_DATA_DIR}/raw/firms/841599/*.csv"
+
+    stream_patterns:
+      SP: "*fire_archive_*.csv"
+      NRT: "*fire_nrt_*.csv"
+
+    # Confirmed from real FIRMS headers.
+    platform_map:
+      "NOAA-20": "NOAA-20"
+      "J1":      "NOAA-20"
+      "N20":     "NOAA-20"
+
+    field_map:
+      latitude:    lat
+      longitude:   lon
+      acq_date:    acq_date
+      acq_time:    acq_time_utc
+      satellite:   satellite_raw
+      instrument:  instrument_raw
+      confidence:  confidence_raw
+      frp:         frp_mw
+      daynight:    day_night
+      type:        fire_type
+
+    confidence_map:
+      type: categorical
+      low:     "l"
+      nominal: "n"
+      high:    "h"
+
+
+  viirs_noaa21:
+    source_id: viirs_noaa21
+    adapter: firms_csv
+    sensor_family: VIIRS
+    product_version: "VIIRS C2 (NOAA-21)"
+    processing_stream: SP
+    archive_request_id: "841600"
+
+    location_pattern: "${TERRAFLARE_DATA_DIR}/raw/firms/841600/*.csv"
+
+    stream_patterns:
+      SP: "*fire_archive_*.csv"
+      NRT: "*fire_nrt_*.csv"
+
+    # Confirmed from real FIRMS headers.
+    platform_map:
+      "NOAA-21": "NOAA-21"
+      "J2":      "NOAA-21"
+      "N21":     "NOAA-21"
+
+    field_map:
+      latitude:    lat
+      longitude:   lon
+      acq_date:    acq_date
+      acq_time:    acq_time_utc
+      satellite:   satellite_raw
+      instrument:  instrument_raw
+      confidence:  confidence_raw
+      frp:         frp_mw
+      daynight:    day_night
+      type:        fire_type
+
+    confidence_map:
+      type: categorical
+      low:     "l"
+      nominal: "n"
+      high:    "h"

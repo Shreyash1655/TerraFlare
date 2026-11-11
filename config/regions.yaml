@@ -1,0 +1,48 @@
+# =============================================================================
+# TerraFlare – regions.yaml
+# =============================================================================
+# Bbox convention: [min_lon, min_lat, max_lon, max_lat]  (GeoJSON order)
+# =============================================================================
+
+regions:
+
+  india:
+    region_id: india
+    name: India
+    description: >
+      Full-country bounding box matching the FIRMS archive request area.
+      Covers the Indian subcontinent including island territories.
+    bbox: [68.0, 6.0, 98.0, 37.0]   # min_lon, min_lat, max_lon, max_lat
+
+  goa_western_ghats:
+    region_id: goa_western_ghats
+    name: "Goa and Western Ghats (approximate)"
+    description: >
+      Approximate bbox covering Goa and the adjacent Western Ghats biodiversity
+      hotspot. Used for high-resolution fixture data and development testing.
+      TODO: verify exact boundaries against the FIRMS request or a gazetteer.
+    bbox: [73.6, 14.9, 74.4, 16.0]  # TODO – verify against target shapefile
+
+  north_india:
+    region_id: north_india
+    name: "Northwest India"
+    description: "Northern quadrant covering Punjab, Haryana, UP, Rajasthan, and Northern states."
+    bbox: [68.0, 21.5, 83.0, 37.0]
+
+  northeast_india:
+    region_id: northeast_india
+    name: "Northeast & East India"
+    description: "Northeastern quadrant covering Bihar, West Bengal, and Northeast states."
+    bbox: [83.0, 21.5, 98.0, 37.0]
+
+  southwest_india:
+    region_id: southwest_india
+    name: "Southwest & Western India"
+    description: "Southwestern quadrant covering Maharashtra, Karnataka, Goa, and Kerala."
+    bbox: [68.0, 6.0, 83.0, 21.5]
+
+  southeast_india:
+    region_id: southeast_india
+    name: "Southeast & Central-East India"
+    description: "Southeastern quadrant covering Andhra Pradesh, Telangana, Tamil Nadu, and Odisha."
+    bbox: [83.0, 6.0, 98.0, 21.5]
