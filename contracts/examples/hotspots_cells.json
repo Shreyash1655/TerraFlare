@@ -1,0 +1,124 @@
+{
+  "data": {
+    "h3_resolution": 6,
+    "cells": [
+      {
+        "h3_cell": "863d16b97ffffff",
+        "harmonized_value": 11.0,
+        "lower": 11.0,
+        "upper": 11.0,
+        "modis_observed": 13.0,
+        "viirs_observed": 11.0,
+        "is_provisional": false,
+        "reliability": "low"
+      },
+      {
+        "h3_cell": "863d16007ffffff",
+        "harmonized_value": 7.0,
+        "lower": 7.0,
+        "upper": 7.0,
+        "modis_observed": 9.0,
+        "viirs_observed": 7.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d1688fffffff",
+        "harmonized_value": 6.0,
+        "lower": 6.0,
+        "upper": 6.0,
+        "modis_observed": 9.0,
+        "viirs_observed": 6.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d16137ffffff",
+        "harmonized_value": 6.0,
+        "lower": 6.0,
+        "upper": 6.0,
+        "modis_observed": 7.0,
+        "viirs_observed": 6.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d168f7ffffff",
+        "harmonized_value": 6.0,
+        "lower": 6.0,
+        "upper": 6.0,
+        "modis_observed": 3.0,
+        "viirs_observed": 6.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d1602fffffff",
+        "harmonized_value": 6.0,
+        "lower": 6.0,
+        "upper": 6.0,
+        "modis_observed": 9.0,
+        "viirs_observed": 6.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d16b9fffffff",
+        "harmonized_value": 6.0,
+        "lower": 6.0,
+        "upper": 6.0,
+        "modis_observed": 3.0,
+        "viirs_observed": 6.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d16c5fffffff",
+        "harmonized_value": 6.0,
+        "lower": 6.0,
+        "upper": 6.0,
+        "modis_observed": 1.0,
+        "viirs_observed": 6.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d16157ffffff",
+        "harmonized_value": 5.0,
+        "lower": 5.0,
+        "upper": 5.0,
+        "modis_observed": 6.0,
+        "viirs_observed": 5.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      },
+      {
+        "h3_cell": "863d16cefffffff",
+        "harmonized_value": 5.0,
+        "lower": 5.0,
+        "upper": 5.0,
+        "modis_observed": 5.0,
+        "viirs_observed": 5.0,
+        "is_provisional": false,
+        "reliability": "insufficient"
+      }
+    ],
+    "reliability": "low",
+    "warning": "Area is small: uncertainty intervals are wide and satellite detection intermittency is high"
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": false,
+    "reliability": "low",
+    "warnings": [
+      "Area is small: uncertainty intervals are wide and satellite detection intermittency is high",
+      "Small area: pre-2012 uses native MODIS counts due to conversion uncertainty; 2012+ uses observed VIIRS reference series."
+    ],
+    "generated_at": "2026-11-12T17:15:40.431527+00:00"
+  }
+}

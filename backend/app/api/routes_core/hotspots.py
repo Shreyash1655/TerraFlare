@@ -1,4 +1,4 @@
-"""Core API routes: /api/v1/hotspots and /api/v1/hotspots/cells."""
+"""Core API routes: /api/v1/hotspots and /api/v1/hotspots/cells wrapped in common envelope."""
 
 from __future__ import annotations
 
@@ -10,27 +10,16 @@ from pydantic import BaseModel
 
 from app.core.harmonization.uncertainty import interval_for
 from app.core.storage.duckdb_repo import DuckDBRepository
-from app.shared.regions import load_regions
+from app.shared.api_envelope import (
+    ApiResponse,
+    ResponseMeta,
+    evaluate_series_and_uncertainty,
+    make_meta,
+    resolve_api_area,
+)
 
 router = APIRouter(tags=["hotspots"])
 repo = DuckDBRepository()
-
-
-def parse_bbox_string(bbox_str: str) -> tuple[float, float, float, float]:
-    """Parse comma-separated 'minLon,minLat,maxLon,maxLat' string."""
-    try:
-        parts = [float(x.strip()) for x in bbox_str.split(",")]
-        if len(parts) != 4:
-            raise ValueError()
-        min_lon, min_lat, max_lon, max_lat = parts
-        if min_lon > max_lon or min_lat > max_lat:
-            raise ValueError()
-        return min_lon, min_lat, max_lon, max_lat
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid bbox format. Expected 'minLon,minLat,maxLon,maxLat' with min <= max.",
-        )
 
 
 def _clean_param(val: Any, default: Any = None) -> Any:
@@ -43,36 +32,47 @@ def _clean_param(val: Any, default: Any = None) -> Any:
 def get_hotspots(
     region_id: str | None = Query(None, description="Region ID filter"),
     bbox: str | None = Query(None, description="Bounding box filter minLon,minLat,maxLon,maxLat"),
+    polygon: str | None = Query(None, description="GeoJSON polygon"),
     start: str | None = Query(None, description="Start date YYYY-MM-DD"),
     end: str | None = Query(None, description="End date YYYY-MM-DD"),
     sensors: str | None = Query(None, description="Comma-separated sensor families (MODIS,VIIRS)"),
     confidence: str | None = Query(None, description="Minimum confidence class (low, nominal, high)"),
     limit: int = Query(5000, ge=1, le=10000, description="Maximum number of points to return"),
 ) -> dict[str, Any]:
-    """Query hotspot point detections as GeoJSON FeatureCollection."""
+    """Query hotspot point detections as GeoJSON FeatureCollection with common envelope."""
     region_id = _clean_param(region_id, None)
     bbox = _clean_param(bbox, None)
+    polygon = _clean_param(polygon, None)
     start = _clean_param(start, None)
     end = _clean_param(end, None)
     sensors = _clean_param(sensors, None)
     confidence = _clean_param(confidence, None)
     limit = int(_clean_param(limit, 5000))
 
-    clauses = ["is_valid = true"]
-    is_drawn_area = bool(bbox)
+    area_type, cells, is_drawn_area, bbox_tuple = resolve_api_area(
+        region_id=region_id, bbox=bbox, polygon=polygon
+    )
 
-    if bbox:
-        min_lon, min_lat, max_lon, max_lat = parse_bbox_string(bbox)
-        clauses.append(f"lon >= {min_lon} AND lon <= {max_lon} AND lat >= {min_lat} AND lat <= {max_lat}")
-    elif region_id:
-        regions = load_regions()
-        if region_id not in regions:
-            raise HTTPException(status_code=404, detail=f"Region '{region_id}' not found.")
-        reg_bb = regions[region_id].bbox
-        clauses.append(
-            f"lon >= {reg_bb.min_lon} AND lon <= {reg_bb.max_lon} AND "
-            f"lat >= {reg_bb.min_lat} AND lat <= {reg_bb.max_lat}"
-        )
+    clauses = ["is_valid = true"]
+    params: list[Any] = []
+
+    if cells is not None:
+        if len(cells) == 0:
+            features_data = {
+                "type": "FeatureCollection",
+                "truncated": False,
+                "features": [],
+                "reliability": "insufficient",
+                "uncertainty_interval": None,
+                "warning": "Area contains no valid grid cells.",
+            }
+            meta = make_meta(reliability="insufficient", warnings=["Area contains no valid grid cells."])
+            return {"data": features_data, "meta": meta}
+        clauses.append("h3_cell IN (SELECT unnest(?::VARCHAR[]))")
+        params.append(cells)
+    elif bbox_tuple:
+        b_min_lon, b_min_lat, b_max_lon, b_max_lat = bbox_tuple
+        clauses.append(f"lon >= {b_min_lon} AND lon <= {b_max_lon} AND lat >= {b_min_lat} AND lat <= {b_max_lat}")
 
     if start:
         clauses.append(f"acq_date >= '{start}'")
@@ -106,13 +106,13 @@ def get_hotspots(
     """
 
     try:
-        df = repo.con.execute(query).df()
+        df = repo.con.execute(query, params).df() if params else repo.con.execute(query).df()
     except Exception:
         df = None
 
     features = []
     truncated = False
-    total_count = 0
+    is_any_prov = False
 
     if df is not None and not df.empty:
         total_count = len(df)
@@ -127,9 +127,10 @@ def get_hotspots(
                 if hasattr(dt_utc, "isoformat") and dt_utc is not None
                 else (str(dt_utc) if dt_utc is not None else None)
             )
-            # Per-source provisional check: NRT stream or null/missing SP
             stream_val = str(row.get("processing_stream", "")).upper()
             is_prov = stream_val == "NRT"
+            if is_prov:
+                is_any_prov = True
 
             frp = row["frp_mw"]
             frp_val = float(frp) if frp is not None and str(frp) != "nan" else None
@@ -152,56 +153,72 @@ def get_hotspots(
             }
             features.append(feat)
 
-    resp: dict[str, Any] = {
+    expected = float(len(features))
+    eff_series, reliability, rel_l, rel_u, warnings = evaluate_series_and_uncertainty(
+        expected_count=expected,
+        is_drawn_area=is_drawn_area,
+        requested_series="harmonized",
+    )
+
+    if rel_l is not None and rel_u is not None:
+        u_interval = [
+            round(max(0.0, expected * (1.0 - rel_l)), 1),
+            round(expected * (1.0 + rel_u), 1),
+        ]
+    else:
+        u_interval = None
+
+    features_data = {
         "type": "FeatureCollection",
         "truncated": truncated,
         "features": features,
+        "reliability": reliability,
+        "uncertainty_interval": u_interval,
+        "warning": warnings[0] if warnings else None,
     }
 
-    # Task 10 addendum: uncertainty and reliability for drawn area
-    if is_drawn_area:
-        expected = float(len(features))
-        rel_l, rel_u, reliability = interval_for(expected)
-        resp["reliability"] = reliability
-        if rel_l is not None and rel_u is not None:
-            resp["uncertainty_interval"] = [
-                round(max(0.0, expected * (1.0 - rel_l)), 1),
-                round(expected * (1.0 + rel_u), 1),
-            ]
-        else:
-            resp["uncertainty_interval"] = None
-        if reliability in ("low", "insufficient") or expected < 10:
-            resp["warning"] = "Area is small: uncertainty intervals are wide and satellite detection intermittency is high"
-
-    return resp
+    meta = make_meta(
+        series=eff_series,
+        method="stratified_ratio",
+        is_provisional=is_any_prov,
+        reliability=reliability,
+        warnings=warnings,
+    )
+    return {"data": features_data, "meta": meta}
 
 
 @router.get("/hotspots/cells")
 def get_hotspot_cells(
     region_id: str | None = Query(None, description="Region ID filter"),
     bbox: str | None = Query(None, description="Bounding box filter minLon,minLat,maxLon,maxLat"),
+    polygon: str | None = Query(None, description="GeoJSON polygon"),
     start: str | None = Query(None, description="Start date YYYY-MM-DD"),
     end: str | None = Query(None, description="End date YYYY-MM-DD"),
     h3_res: int = Query(6, ge=1, le=10, description="H3 cell resolution"),
 ) -> dict[str, Any]:
-    """Query H3-cell aggregated harmonized activity."""
+    """Query H3-cell aggregated harmonized activity wrapped in common envelope."""
     region_id = _clean_param(region_id, None)
     bbox = _clean_param(bbox, None)
+    polygon = _clean_param(polygon, None)
     start = _clean_param(start, None)
     end = _clean_param(end, None)
     h3_res = int(_clean_param(h3_res, 6))
 
-    clauses = ["1=1"]
-    is_drawn_area = bool(bbox)
+    area_type, cells_list, is_drawn_area, bbox_tuple = resolve_api_area(
+        region_id=region_id, bbox=bbox, polygon=polygon, h3_res=h3_res
+    )
 
-    if bbox:
-        min_lon, min_lat, max_lon, max_lat = parse_bbox_string(bbox)
-        # Filter harmonized_cell_day using joined obs_clean or cell day bbox
-        clauses.append(f"h3_cell IN (SELECT DISTINCT h3_cell FROM obs_clean WHERE lon >= {min_lon} AND lon <= {max_lon} AND lat >= {min_lat} AND lat <= {max_lat} AND is_valid = true)")
-    elif region_id:
-        regions = load_regions()
-        if region_id not in regions:
-            raise HTTPException(status_code=404, detail=f"Region '{region_id}' not found.")
+    clauses = ["1=1"]
+    params: list[Any] = []
+
+    if cells_list is not None:
+        if len(cells_list) == 0:
+            cells_data = {"h3_resolution": h3_res, "cells": []}
+            meta = make_meta(reliability="insufficient", warnings=["Area contains no valid grid cells."])
+            return {"data": cells_data, "meta": meta}
+        clauses.append("h3_cell IN (SELECT unnest(?::VARCHAR[]))")
+        params.append(cells_list)
+    elif region_id and region_id.lower() not in ("india", "all"):
         clauses.append(f"region_id = '{region_id}'")
 
     if start:
@@ -213,7 +230,7 @@ def get_hotspot_cells(
     query = f"""
         SELECT
             h3_cell,
-            ROUND(SUM(harmonized_value), 2) AS harmonized_value,
+            ROUND(SUM(CASE WHEN acq_date >= '2012-01-20' AND viirs_platform = 'none' THEN 0.0 ELSE harmonized_value END), 2) AS harmonized_value,
             ROUND(SUM(harmonized_lower), 2) AS lower,
             ROUND(SUM(harmonized_upper), 2) AS upper,
             ROUND(SUM(modis_observed), 2) AS modis_observed,
@@ -227,17 +244,22 @@ def get_hotspot_cells(
     """
 
     try:
-        df = repo.con.execute(query).df()
+        df = repo.con.execute(query, params).df() if params else repo.con.execute(query).df()
     except Exception:
         df = None
 
     cells = []
     total_val = 0.0
+    is_any_prov = False
+
     if df is not None and not df.empty:
         for _, r in df.iterrows():
             val = float(r["harmonized_value"])
             total_val += val
             _, _, rel = interval_for(val)
+            prov = bool(r["is_provisional"]) if r["is_provisional"] is not None else False
+            if prov:
+                is_any_prov = True
             cells.append({
                 "h3_cell": str(r["h3_cell"]),
                 "harmonized_value": val,
@@ -245,19 +267,28 @@ def get_hotspot_cells(
                 "upper": float(r["upper"]) if r["upper"] is not None else round(val * 1.2, 2),
                 "modis_observed": float(r["modis_observed"]) if r["modis_observed"] is not None else 0.0,
                 "viirs_observed": float(r["viirs_observed"]) if r["viirs_observed"] is not None else 0.0,
-                "is_provisional": bool(r["is_provisional"]) if r["is_provisional"] is not None else False,
+                "is_provisional": prov,
                 "reliability": rel,
             })
 
-    resp: dict[str, Any] = {
+    eff_series, reliability, rel_l, rel_u, warnings = evaluate_series_and_uncertainty(
+        expected_count=total_val,
+        is_drawn_area=is_drawn_area,
+        requested_series="harmonized",
+    )
+
+    cells_data = {
         "h3_resolution": h3_res,
         "cells": cells,
+        "reliability": reliability,
+        "warning": warnings[0] if warnings else None,
     }
 
-    if is_drawn_area:
-        _, _, overall_rel = interval_for(total_val)
-        resp["reliability"] = overall_rel
-        if overall_rel in ("low", "insufficient") or total_val < 10:
-            resp["warning"] = "Area is small: uncertainty intervals are wide and satellite detection intermittency is high"
-
-    return resp
+    meta = make_meta(
+        series=eff_series,
+        method="stratified_ratio",
+        is_provisional=is_any_prov,
+        reliability=reliability,
+        warnings=warnings,
+    )
+    return {"data": cells_data, "meta": meta}

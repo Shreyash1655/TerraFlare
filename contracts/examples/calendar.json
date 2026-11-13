@@ -1,0 +1,262 @@
+{
+  "data": {
+    "year": 2026,
+    "region_id": "north_india",
+    "series": "harmonized",
+    "unit": "detections",
+    "days": [
+      {
+        "date": "2026-12-18",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-19",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-20",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-21",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-22",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-23",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-24",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-25",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-26",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-27",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-28",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-29",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-30",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      },
+      {
+        "date": "2026-12-31",
+        "harmonized_value": 0.0,
+        "lower": 0.0,
+        "upper": 0.0,
+        "data_flag": "zero",
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      }
+    ],
+    "months": [
+      {
+        "month": 1,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 31,
+        "days_in_month": 31
+      },
+      {
+        "month": 2,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 28,
+        "days_in_month": 28
+      },
+      {
+        "month": 3,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 31,
+        "days_in_month": 31
+      },
+      {
+        "month": 4,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 30,
+        "days_in_month": 30
+      },
+      {
+        "month": 5,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 31,
+        "days_in_month": 31
+      },
+      {
+        "month": 6,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 30,
+        "days_in_month": 30
+      },
+      {
+        "month": 7,
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 31,
+        "days_in_month": 31
+      },
+      {
+        "month": 8,
+        "is_provisional": true,
+        "is_partial": true,
+        "days_covered": 30,
+        "days_in_month": 31
+      },
+      {
+        "month": 9,
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 30,
+        "days_in_month": 30
+      },
+      {
+        "month": 10,
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 31,
+        "days_in_month": 31
+      },
+      {
+        "month": 11,
+        "is_provisional": true,
+        "is_partial": true,
+        "days_covered": 9,
+        "days_in_month": 30
+      },
+      {
+        "month": 12,
+        "is_provisional": true,
+        "is_partial": false,
+        "days_covered": 0,
+        "days_in_month": 31
+      }
+    ]
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": "observed",
+    "interval_applies_to": "bridge_uncertainty",
+    "coverage": null,
+    "is_provisional": true,
+    "reliability": "medium",
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:40.603721+00:00"
+  }
+}

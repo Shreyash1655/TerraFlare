@@ -1,0 +1,118 @@
+{
+  "data": {
+    "type": "FeatureCollection",
+    "truncated": true,
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            70.10921,
+            23.15364
+          ]
+        },
+        "properties": {
+          "obs_id": "da97404fddbefaaf",
+          "sensor_family": "MODIS",
+          "platform": "Terra",
+          "acq_datetime_utc": "2026-11-09T21:32:00+05:30",
+          "confidence_class": "nominal",
+          "frp_mw": 12.57,
+          "is_provisional": true
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            75.45615,
+            30.68213
+          ]
+        },
+        "properties": {
+          "obs_id": "5c12ee4b391e58d0",
+          "sensor_family": "MODIS",
+          "platform": "Aqua",
+          "acq_datetime_utc": "2026-11-09T16:36:00+05:30",
+          "confidence_class": "nominal",
+          "frp_mw": 39.98,
+          "is_provisional": true
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            74.92859,
+            30.62673
+          ]
+        },
+        "properties": {
+          "obs_id": "7707f2a81563a264",
+          "sensor_family": "MODIS",
+          "platform": "Aqua",
+          "acq_datetime_utc": "2026-11-09T16:36:00+05:30",
+          "confidence_class": "nominal",
+          "frp_mw": 96.45,
+          "is_provisional": true
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            75.48898,
+            30.45691
+          ]
+        },
+        "properties": {
+          "obs_id": "b9459198cffd205d",
+          "sensor_family": "MODIS",
+          "platform": "Aqua",
+          "acq_datetime_utc": "2026-11-09T16:36:00+05:30",
+          "confidence_class": "nominal",
+          "frp_mw": 126.32,
+          "is_provisional": true
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            74.71831,
+            30.85231
+          ]
+        },
+        "properties": {
+          "obs_id": "547017da1ee0dfa0",
+          "sensor_family": "MODIS",
+          "platform": "Aqua",
+          "acq_datetime_utc": "2026-11-09T16:36:00+05:30",
+          "confidence_class": "nominal",
+          "frp_mw": 44.66,
+          "is_provisional": true
+        }
+      }
+    ],
+    "reliability": "insufficient",
+    "uncertainty_interval": null,
+    "warning": null
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": true,
+    "reliability": "insufficient",
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:40.401692+00:00"
+  }
+}

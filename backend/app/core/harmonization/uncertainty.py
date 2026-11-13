@@ -207,15 +207,15 @@ def interval_for(expected_count: float) -> tuple[float | None, float | None, str
         base_upper = float(matched_bin.get("rel_upper", 1.5))
     else:
         if val < 50:
-            base_lower, base_upper = 0.717, 6.244
+            base_lower, base_upper = 0.940, 2.626
         elif val < 250:
-            base_lower, base_upper = 0.598, 4.401
+            base_lower, base_upper = 0.841, 1.588
         elif val < 1000:
-            base_lower, base_upper = 0.512, 2.728
+            base_lower, base_upper = 0.792, 1.023
         elif val < 5000:
-            base_lower, base_upper = 0.440, 1.167
+            base_lower, base_upper = 0.679, 0.791
         else:
-            base_lower, base_upper = 0.125, 0.142
+            base_lower, base_upper = 0.539, 0.493
 
     total_lower = round(base_lower + bridge_term, 4)
     total_upper = round(base_upper + bridge_term, 4)

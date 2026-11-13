@@ -1,0 +1,440 @@
+{
+  "data": {
+    "region_id": "india",
+    "series": "harmonized",
+    "years": [
+      {
+        "year": 2000,
+        "harmonized_value": 13766.59,
+        "lower": 10132.21,
+        "upper": 18639.96,
+        "modis_observed": 1120.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 61,
+        "days_in_month": 0
+      },
+      {
+        "year": 2001,
+        "harmonized_value": 211489.27,
+        "lower": 155656.1,
+        "upper": 286356.47,
+        "modis_observed": 17206.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 306,
+        "days_in_month": 0
+      },
+      {
+        "year": 2002,
+        "harmonized_value": 226594.49,
+        "lower": 166773.54,
+        "upper": 306808.94,
+        "modis_observed": 24406.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 329,
+        "days_in_month": 0
+      },
+      {
+        "year": 2003,
+        "harmonized_value": 351382.51,
+        "lower": 258617.53,
+        "upper": 475771.92,
+        "modis_observed": 52233.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 341,
+        "days_in_month": 0
+      },
+      {
+        "year": 2004,
+        "harmonized_value": 388569.0,
+        "lower": 285986.78,
+        "upper": 526122.43,
+        "modis_observed": 60024.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 344,
+        "days_in_month": 0
+      },
+      {
+        "year": 2005,
+        "harmonized_value": 384593.22,
+        "lower": 283060.61,
+        "upper": 520739.22,
+        "modis_observed": 58831.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 335,
+        "days_in_month": 0
+      },
+      {
+        "year": 2006,
+        "harmonized_value": 403292.67,
+        "lower": 296823.41,
+        "upper": 546058.28,
+        "modis_observed": 60851.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 351,
+        "days_in_month": 0
+      },
+      {
+        "year": 2007,
+        "harmonized_value": 465391.13,
+        "lower": 342527.87,
+        "upper": 630139.59,
+        "modis_observed": 69636.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 357,
+        "days_in_month": 0
+      },
+      {
+        "year": 2008,
+        "harmonized_value": 452409.84,
+        "lower": 332973.64,
+        "upper": 612562.92,
+        "modis_observed": 65702.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 341,
+        "days_in_month": 0
+      },
+      {
+        "year": 2009,
+        "harmonized_value": 560059.65,
+        "lower": 412203.9,
+        "upper": 758320.77,
+        "modis_observed": 83909.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 348,
+        "days_in_month": 0
+      },
+      {
+        "year": 2010,
+        "harmonized_value": 460887.44,
+        "lower": 339213.16,
+        "upper": 624041.59,
+        "modis_observed": 70254.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 347,
+        "days_in_month": 0
+      },
+      {
+        "year": 2011,
+        "harmonized_value": 453780.93,
+        "lower": 333982.76,
+        "upper": 614419.38,
+        "modis_observed": 66255.0,
+        "viirs_observed": 0.0,
+        "sensor_mix": [
+          "MODIS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 346,
+        "days_in_month": 0
+      },
+      {
+        "year": 2012,
+        "harmonized_value": 456329.37,
+        "lower": 456329.37,
+        "upper": 456329.37,
+        "modis_observed": 86655.0,
+        "viirs_observed": 447574.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 366,
+        "days_in_month": 0
+      },
+      {
+        "year": 2013,
+        "harmonized_value": 359065.0,
+        "lower": 359065.0,
+        "upper": 359065.0,
+        "modis_observed": 65118.0,
+        "viirs_observed": 359065.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2014,
+        "harmonized_value": 399286.0,
+        "lower": 399286.0,
+        "upper": 399286.0,
+        "modis_observed": 69087.0,
+        "viirs_observed": 399286.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2015,
+        "harmonized_value": 350413.0,
+        "lower": 350413.0,
+        "upper": 350413.0,
+        "modis_observed": 61307.0,
+        "viirs_observed": 350413.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2016,
+        "harmonized_value": 508381.0,
+        "lower": 508381.0,
+        "upper": 508381.0,
+        "modis_observed": 81053.0,
+        "viirs_observed": 508381.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 366,
+        "days_in_month": 0
+      },
+      {
+        "year": 2017,
+        "harmonized_value": 434752.0,
+        "lower": 434752.0,
+        "upper": 434752.0,
+        "modis_observed": 74339.0,
+        "viirs_observed": 434752.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2018,
+        "harmonized_value": 469022.0,
+        "lower": 469022.0,
+        "upper": 469022.0,
+        "modis_observed": 82041.0,
+        "viirs_observed": 469022.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2019,
+        "harmonized_value": 377687.0,
+        "lower": 377687.0,
+        "upper": 377687.0,
+        "modis_observed": 68005.0,
+        "viirs_observed": 377687.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 364,
+        "days_in_month": 0
+      },
+      {
+        "year": 2020,
+        "harmonized_value": 353090.0,
+        "lower": 353090.0,
+        "upper": 353090.0,
+        "modis_observed": 68641.0,
+        "viirs_observed": 353090.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 366,
+        "days_in_month": 0
+      },
+      {
+        "year": 2021,
+        "harmonized_value": 581731.0,
+        "lower": 581731.0,
+        "upper": 581731.0,
+        "modis_observed": 102626.0,
+        "viirs_observed": 581731.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2022,
+        "harmonized_value": 423382.0,
+        "lower": 415591.77,
+        "upper": 431172.23,
+        "modis_observed": 74274.0,
+        "viirs_observed": 423382.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2023,
+        "harmonized_value": 412080.0,
+        "lower": 412080.0,
+        "upper": 412080.0,
+        "modis_observed": 70764.0,
+        "viirs_observed": 412080.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2024,
+        "harmonized_value": 392527.0,
+        "lower": 392527.0,
+        "upper": 392527.0,
+        "modis_observed": 66246.0,
+        "viirs_observed": 392527.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 366,
+        "days_in_month": 0
+      },
+      {
+        "year": 2025,
+        "harmonized_value": 462284.0,
+        "lower": 462284.0,
+        "upper": 462284.0,
+        "modis_observed": 85662.0,
+        "viirs_observed": 462284.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": false,
+        "days_covered": 365,
+        "days_in_month": 0
+      },
+      {
+        "year": 2026,
+        "harmonized_value": 395960.0,
+        "lower": 388674.34,
+        "upper": 403245.66,
+        "modis_observed": 69448.0,
+        "viirs_observed": 395960.0,
+        "sensor_mix": [
+          "MODIS",
+          "VIIRS"
+        ],
+        "is_provisional": false,
+        "is_partial": true,
+        "days_covered": 313,
+        "days_in_month": 0
+      }
+    ]
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": "composite",
+    "interval_applies_to": "pre_2012_conversion_and_bridges",
+    "coverage": "81-96% held-out",
+    "is_provisional": false,
+    "reliability": "medium",
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:40.665481+00:00"
+  }
+}

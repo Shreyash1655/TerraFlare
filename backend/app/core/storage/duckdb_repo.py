@@ -24,9 +24,16 @@ class DuckDBRepository:
         self,
         data_dir: Path | str | None = None,
         db_path: Path | str | None = None,
-        read_only: bool = False,
+        read_only: bool = True,
     ) -> None:
-        self.data_dir = Path(data_dir) if data_dir else settings.data_dir
+        import os
+        env_dir = os.environ.get("TERRAFLARE_DATA_DIR")
+        if data_dir:
+            self.data_dir = Path(data_dir)
+        elif env_dir:
+            self.data_dir = Path(env_dir)
+        else:
+            self.data_dir = settings.data_dir
         self.db_path = Path(db_path) if db_path else (self.data_dir / "terraflare.duckdb")
         self.read_only = read_only
         self.data_mode = settings.data_mode
@@ -36,7 +43,7 @@ class DuckDBRepository:
     @property
     def con(self) -> duckdb.DuckDBPyConnection:
         if self._con is None:
-            self._con = sync_duckdb_views(self.data_dir, self.db_path, read_only=True)
+            self._con = sync_duckdb_views(self.data_dir, self.db_path, read_only=self.read_only)
         return self._con
 
     def refresh_views(self) -> None:

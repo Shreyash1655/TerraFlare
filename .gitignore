@@ -1,0 +1,21 @@
+# Root-level gitignore for TerraFlare
+
+# Data – never commit raw/processed NASA data, parquet or duckdb
+data/*
+!data/README.md
+!data/**/.gitkeep
+data_serving/
+*.duckdb
+*.duckdb.wal
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+
+pytest_out.txt
+.pytest_cache/
+.ruff_cache/
+*.zip

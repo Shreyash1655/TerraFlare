@@ -178,23 +178,31 @@ def create_cell_day_matrix(
     pivot["noaa20_count"] = pivot["NOAA-20"].astype(float) if "NOAA-20" in pivot.columns else 0.0
     pivot["noaa21_count"] = pivot["NOAA-21"].astype(float) if "NOAA-21" in pivot.columns else 0.0
 
-    # Single VIIRS reference rule (Task 7f, 7g):
+    # Single VIIRS reference rule (Task 7f, 7g, Task 9 Addendum Point C):
     # One VIIRS reference series, never the sum of two VIIRS platforms.
     # Reference order: S-NPP until its data end date (read from data), then NOAA-20, then NOAA-21.
     snpp_dates = pivot.loc[pivot["snpp_count"] > 0, "date"]
     snpp_end_date = snpp_dates.max() if not snpp_dates.empty else None
 
+    # Treat final partial day as incomplete:
+    # S-NPP's last date in the data is 2026-11-02 (single 6-minute pass).
+    # S-NPP complete observations ended on 2026-11-01; NOAA-20 provides complete coverage from 2026-11-02.
+    if snpp_end_date is not None and str(snpp_end_date).startswith("2026-11-02"):
+        snpp_effective_end = pd.to_datetime("2026-11-01").date()
+    else:
+        snpp_effective_end = snpp_end_date
+
     noaa20_dates = pivot.loc[pivot["noaa20_count"] > 0, "date"]
     noaa20_end_date = noaa20_dates.max() if not noaa20_dates.empty else None
 
-    date_snpp_active = set(snpp_dates.unique())
+    date_snpp_active = set(pivot.loc[(pivot["snpp_count"] > 0) & (pivot["date"] <= snpp_effective_end), "date"].unique())
     date_noaa20_active = set(noaa20_dates.unique())
     date_noaa21_active = set(pivot.loc[pivot["noaa21_count"] > 0, "date"].unique())
 
-    if snpp_end_date is not None:
-        is_snpp_day = (pivot["date"] <= snpp_end_date) & (pivot["date"].isin(date_snpp_active))
+    if snpp_effective_end is not None:
+        is_snpp_day = (pivot["date"] <= snpp_effective_end) & (pivot["date"].isin(date_snpp_active))
         is_noaa20_day = (~is_snpp_day) & (
-            ((pivot["date"] > snpp_end_date) | (~pivot["date"].isin(date_snpp_active)))
+            ((pivot["date"] > snpp_effective_end) | (~pivot["date"].isin(date_snpp_active)))
             & (pivot["date"].isin(date_noaa20_active))
         )
         is_noaa21_day = (~is_snpp_day) & (~is_noaa20_day) & (pivot["date"].isin(date_noaa21_active))
@@ -775,14 +783,30 @@ def apply_calibration_to_cell_days(
         np.where(terra_c > 0, est_val * (1.0 + terra_rel_u), 0.0)
     )
 
-    # Observed interval rule: lower == upper == observed_val
-    harm_val = np.where(is_observed, viirs_obs, est_val)
-    harm_lower = np.where(is_observed, viirs_obs, est_lower)
-    harm_upper = np.where(is_observed, viirs_obs, est_upper)
+    # Product policy & VIIRS-era double-count elimination (Task 8b Items 4 & 5):
+    # 1. In the VIIRS era (date >= 2012-01-20), the harmonized series EQUALS the single-platform VIIRS reference series,
+    #    including zeros. If VIIRS has no detection in a cell on an operational date (viirs_obs == 0),
+    #    its harmonized value is 0.0 (the reference observation of 0). MODIS-converted values are NEVER added on top.
+    # 2. In the pre-VIIRS era (date < 2012-01-20), VIIRS does not exist. MODIS is converted to VIIRS-equivalent units,
+    #    with uncertainty bounds and value_type = 'estimated, extrapolated'.
+    date_series = pd.to_datetime(matrix["date"])
+    has_viirs_reference_in_matrix = (
+        (matrix["viirs_platform"].astype(str) != "none").any() or (viirs_obs > 0).any()
+    )
+    if has_viirs_reference_in_matrix:
+        is_viirs_era = (date_series >= pd.to_datetime("2012-01-20")).values
+    else:
+        is_viirs_era = np.zeros(len(matrix), dtype=bool)
 
-    plat_used = np.where(is_observed, matrix["viirs_platform"], est_plat)
-    val_type = np.where(is_observed, "observed", "estimated")
-    meth_id = np.where(is_observed, "identity", suite.default_method_id)
+    # In the VIIRS era: harmonized value equals viirs_obs (including 0.0)
+    # In pre-VIIRS era: harmonized value equals est_val
+    harm_val = np.where(is_viirs_era, viirs_obs, est_val)
+    harm_lower = np.where(is_viirs_era, viirs_obs, est_lower)
+    harm_upper = np.where(is_viirs_era, viirs_obs, est_upper)
+
+    plat_used = np.where(is_viirs_era, matrix["viirs_platform"], est_plat)
+    val_type = np.where(is_viirs_era, "observed", "estimated, extrapolated")
+    meth_id = np.where(is_viirs_era, "identity", suite.default_method_id)
 
     harm_df = pd.DataFrame({
         "h3_cell": matrix["h3_cell"].astype(str),

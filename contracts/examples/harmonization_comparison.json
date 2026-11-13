@@ -1,0 +1,124 @@
+{
+  "data": {
+    "region_id": "india",
+    "granularity": "month",
+    "series": [
+      {
+        "period": "2025-12",
+        "modis_observed": 6983.0,
+        "viirs_observed": 43045.0,
+        "harmonized_value": 43045.0,
+        "lower": 43045.0,
+        "upper": 43045.0
+      },
+      {
+        "period": "2026-01",
+        "modis_observed": 6660.0,
+        "viirs_observed": 31277.0,
+        "harmonized_value": 31277.0,
+        "lower": 31277.0,
+        "upper": 31277.0
+      },
+      {
+        "period": "2026-02",
+        "modis_observed": 10588.0,
+        "viirs_observed": 46096.0,
+        "harmonized_value": 46096.0,
+        "lower": 46096.0,
+        "upper": 46096.0
+      },
+      {
+        "period": "2026-03",
+        "modis_observed": 16151.0,
+        "viirs_observed": 101786.0,
+        "harmonized_value": 101786.0,
+        "lower": 101786.0,
+        "upper": 101786.0
+      },
+      {
+        "period": "2026-04",
+        "modis_observed": 20500.0,
+        "viirs_observed": 126585.0,
+        "harmonized_value": 126585.0,
+        "lower": 126585.0,
+        "upper": 126585.0
+      },
+      {
+        "period": "2026-05",
+        "modis_observed": 7053.0,
+        "viirs_observed": 55567.0,
+        "harmonized_value": 55567.0,
+        "lower": 55567.0,
+        "upper": 55567.0
+      },
+      {
+        "period": "2026-06",
+        "modis_observed": 1095.0,
+        "viirs_observed": 10556.0,
+        "harmonized_value": 10556.0,
+        "lower": 10556.0,
+        "upper": 10556.0
+      },
+      {
+        "period": "2026-07",
+        "modis_observed": 169.0,
+        "viirs_observed": 1393.0,
+        "harmonized_value": 1393.0,
+        "lower": 1393.0,
+        "upper": 1393.0
+      },
+      {
+        "period": "2026-08",
+        "modis_observed": 150.0,
+        "viirs_observed": 965.0,
+        "harmonized_value": 965.0,
+        "lower": 965.0,
+        "upper": 965.0
+      },
+      {
+        "period": "2026-09",
+        "modis_observed": 289.0,
+        "viirs_observed": 2061.0,
+        "harmonized_value": 2061.0,
+        "lower": 2061.0,
+        "upper": 2061.0
+      },
+      {
+        "period": "2026-10",
+        "modis_observed": 2353.0,
+        "viirs_observed": 10645.0,
+        "harmonized_value": 10645.0,
+        "lower": 10645.0,
+        "upper": 10645.0
+      },
+      {
+        "period": "2026-11",
+        "modis_observed": 4440.0,
+        "viirs_observed": 9029.0,
+        "harmonized_value": 9029.0,
+        "lower": 9029.0,
+        "upper": 9029.0
+      }
+    ],
+    "diagnostics": {
+      "correlation": 0.9835,
+      "co_detection_rate": 0.5719,
+      "overlap_period": {
+        "start": "2012-01-20",
+        "end": "2026-11-09"
+      }
+    }
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": false,
+    "reliability": "medium",
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:41.217996+00:00"
+  }
+}

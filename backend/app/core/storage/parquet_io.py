@@ -59,13 +59,19 @@ def sync_duckdb_views(
     target_db = Path(db_path) if db_path else (base_data_dir / "terraflare.duckdb")
     target_db.parent.mkdir(parents=True, exist_ok=True)
 
+    # If database file does not exist, it must be created first (not read_only)
+    is_ro = read_only and target_db.exists()
     try:
-        con = duckdb.connect(str(target_db), read_only=read_only)
+        con = duckdb.connect(str(target_db), read_only=is_ro)
     except Exception:
         con = duckdb.connect(str(target_db), read_only=True)
-    if not read_only:
+        is_ro = True
+
+    try:
+        create_views(con, base_data_dir, as_temp=is_ro)
+    except Exception:
         try:
-            create_views(con, base_data_dir)
+            create_views(con, base_data_dir, as_temp=True)
         except Exception:
             pass
     return con

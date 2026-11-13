@@ -1,0 +1,41 @@
+{
+  "data": {
+    "region_id": "india",
+    "series": "harmonized",
+    "year": 2026,
+    "month": 11,
+    "is_partial": true,
+    "is_provisional": true,
+    "current": 9029.0,
+    "median": 27639.5,
+    "q25": 22134.25,
+    "q75": 38018.25,
+    "n_baseline_years": 14,
+    "ratio_to_median": 0.327,
+    "ratio": 0.327,
+    "percentile": 7.1,
+    "reliability": "observed",
+    "value_type": "observed",
+    "interval_applies_to": "bridge_uncertainty",
+    "days_covered": 9,
+    "days_in_month": 30,
+    "lower": 8862.87,
+    "upper": 9195.13,
+    "share_no_veg_history_pct": 0.259,
+    "warning": "possible_static_contamination: 0.26% of detections in cells with no archive vegetation history"
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": "observed",
+    "interval_applies_to": "bridge_uncertainty",
+    "coverage": null,
+    "is_provisional": true,
+    "reliability": "observed",
+    "warnings": [
+      "possible_static_contamination: 0.26% of detections in cells with no archive vegetation history"
+    ],
+    "generated_at": "2026-11-12T17:15:41.083353+00:00"
+  }
+}

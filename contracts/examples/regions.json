@@ -1,0 +1,84 @@
+{
+  "data": {
+    "regions": [
+      {
+        "region_id": "india",
+        "name": "India",
+        "bbox": [
+          68.0,
+          6.0,
+          98.0,
+          37.0
+        ],
+        "description": "Full-country bounding box matching the FIRMS archive request area. Covers the Indian subcontinent including island territories."
+      },
+      {
+        "region_id": "goa_western_ghats",
+        "name": "Goa and Western Ghats (approximate)",
+        "bbox": [
+          73.6,
+          14.9,
+          74.4,
+          16.0
+        ],
+        "description": "Approximate bbox covering Goa and the adjacent Western Ghats biodiversity hotspot. Used for high-resolution fixture data and development testing. TODO: verify exact boundaries against the FIRMS request or a gazetteer."
+      },
+      {
+        "region_id": "north_india",
+        "name": "Northwest India",
+        "bbox": [
+          68.0,
+          21.5,
+          83.0,
+          37.0
+        ],
+        "description": "Northern quadrant covering Punjab, Haryana, UP, Rajasthan, and Northern states."
+      },
+      {
+        "region_id": "northeast_india",
+        "name": "Northeast & East India",
+        "bbox": [
+          83.0,
+          21.5,
+          98.0,
+          37.0
+        ],
+        "description": "Northeastern quadrant covering Bihar, West Bengal, and Northeast states."
+      },
+      {
+        "region_id": "southwest_india",
+        "name": "Southwest & Western India",
+        "bbox": [
+          68.0,
+          6.0,
+          83.0,
+          21.5
+        ],
+        "description": "Southwestern quadrant covering Maharashtra, Karnataka, Goa, and Kerala."
+      },
+      {
+        "region_id": "southeast_india",
+        "name": "Southeast & Central-East India",
+        "bbox": [
+          83.0,
+          6.0,
+          98.0,
+          21.5
+        ],
+        "description": "Southeastern quadrant covering Andhra Pradesh, Telangana, Tamil Nadu, and Odisha."
+      }
+    ]
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": null,
+    "method": null,
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": false,
+    "reliability": null,
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:40.254459+00:00"
+  }
+}

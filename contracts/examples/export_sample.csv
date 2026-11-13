@@ -1,0 +1,8 @@
+# TerraFlare Active Fire Observation Export
+# Dataset: monthly
+# Area: north_india
+# Series: harmonized
+# Data Version: 2026.11.11.1
+# Generated At: 2026-11-12T17:15:41.269657+00:00
+#
+year_month,sensor,sensor_family,platform,value_type,value,lower,upper,modis_observed,viirs_observed,is_provisional,is_partial,days_covered,days_in_month

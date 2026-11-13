@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -27,7 +28,16 @@ class TerraFlareError(Exception):
 
 
 def _body(code: str, message: str, details: dict | None = None) -> dict:
-    return {"error": {"code": code, "message": message, "details": details or {}}}
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details or {},
+        },
+        "meta": {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        },
+    }
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -38,6 +48,18 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=_body(exc.code, exc.message, exc.details),
+        )
+
+    @app.exception_handler(HTTPException)
+    async def _http(_: Request, exc: HTTPException):
+        code = "not_found" if exc.status_code == 404 else (
+            "bad_request" if exc.status_code == 400 else "http_error"
+        )
+        msg = str(exc.detail) if isinstance(exc.detail, str) else "HTTP request error"
+        details = exc.detail if isinstance(exc.detail, dict) else {}
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_body(code, msg, details),
         )
 
     @app.exception_handler(RequestValidationError)
@@ -56,4 +78,5 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=500,
             content=_body("internal_error", str(exc)),
         )
+
 

@@ -226,21 +226,25 @@ def test_api_wired_to_manifest(test_data_dir: Path, monkeypatch: pytest.MonkeyPa
 
     # 1. Health endpoint
     h = health()
-    assert h.status == "ok"
-    assert h.data_version == expected_version
-    assert h.manifest_summary is not None
-    assert h.manifest_summary["data_version"] == expected_version
-    assert h.manifest_summary["h3_resolution"] == 6
+    h_data = h["data"] if isinstance(h, dict) else h
+    h_meta = h["meta"] if isinstance(h, dict) else None
+    assert h_data.status == "ok"
+    assert (h_meta.data_version if h_meta else h_data.data_version) == expected_version
+    assert h_data.manifest_summary is not None
+    assert h_data.manifest_summary["data_version"] == expected_version
+    assert h_data.manifest_summary["h3_resolution"] == 6
 
     # 2. Meta capabilities endpoint
     c = get_capabilities()
-    assert c.data_version == expected_version
-    assert c.h3_resolution == 6
-    assert c.has_frp is True
-    assert c.has_confidence is True
-    assert c.has_day_night is True
-    assert c.has_platform is True
-    assert c.has_fire_type is True
+    c_data = c["data"] if isinstance(c, dict) else c
+    c_meta = c["meta"] if isinstance(c, dict) else None
+    assert (c_meta.data_version if c_meta else c_data.data_version) == expected_version
+    assert c_data.h3_resolution == 6
+    assert c_data.has_frp is True
+    assert c_data.has_confidence is True
+    assert c_data.has_day_night is True
+    assert c_data.has_platform is True
+    assert c_data.has_fire_type is True
 
 
 def test_run_isolation_2023_slice_leaves_only_2023_rows(test_data_dir: Path):

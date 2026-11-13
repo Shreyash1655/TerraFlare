@@ -1,0 +1,48 @@
+{
+  "data": {
+    "service": "TerraFlare Core API",
+    "version": "1.0",
+    "supported_series": [
+      "harmonized",
+      "viirs_native",
+      "modis_native"
+    ],
+    "sensors": [
+      "MODIS",
+      "VIIRS"
+    ],
+    "platforms": [
+      "Terra",
+      "Aqua",
+      "S-NPP",
+      "NOAA-20",
+      "NOAA-21"
+    ],
+    "h3_resolution": 6,
+    "has_frp": true,
+    "has_confidence": true,
+    "has_day_night": true,
+    "has_platform": true,
+    "has_fire_type": true,
+    "features_enabled": [
+      "season-shift",
+      "fire-memory",
+      "anomaly",
+      "events",
+      "exposure",
+      "quality"
+    ]
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": null,
+    "method": null,
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": false,
+    "reliability": null,
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:40.251957+00:00"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "data": {
+    "method_id": "identity",
+    "name": "Stratified Ratio Harmonization (Aqua-Preferred)",
+    "description": "Harmonizes MODIS (Terra & Aqua) and VIIRS (S-NPP, NOAA-20, NOAA-21) active-fire hotspot detections into a continuous VIIRS 375m equivalent series. When both Terra and Aqua exist for a cell-day, Aqua-based prediction is prioritized due to its near-synchronous 13:30 local overpass with VIIRS. A single VIIRS reference series is maintained (S-NPP -> NOAA-20 on outage -> NOAA-21), never summing platforms.",
+    "overlap_period": {
+      "start": "2018-04-01",
+      "end": "2026-08-01"
+    },
+    "assumptions": [
+      "VIIRS I-band 375m detection count is the standard reference scale across all historical and current periods.",
+      "Aqua overpass (~13:30 local solar) closely tracks VIIRS (~13:30 local solar), minimizing diurnal mismatch.",
+      "Scaling ratios vary by calendar month and day/night overpass cycle, accounting for seasonal fire regimes.",
+      "S-NPP and NOAA-20 exhibit stationary cross-sensor ratio over annual scales without long-term drift."
+    ],
+    "limitations": [
+      "Does not correct for cloud obscuration or heavy pyrocumulonimbus smoke blockage.",
+      "Uncertainty intervals widen significantly for small geographic areas (count < 10 detections).",
+      "Single sensor detections during sensor outages carry higher platform uncertainty.",
+      "NRT (Near Real-Time) observations are provisional and lack final definitive geolocation and ephemeris refinement."
+    ],
+    "validation": [
+      {
+        "metric": "Relative MAE (Out-of-sample holdout)",
+        "value": 0.112,
+        "baseline": "identity"
+      },
+      {
+        "metric": "Rank Correlation (Spearman rho)",
+        "value": 0.982,
+        "baseline": "identity"
+      },
+      {
+        "metric": "Mean Bias Error (Out-of-sample)",
+        "value": 3800.0,
+        "baseline": "identity"
+      },
+      {
+        "metric": "90% Prediction Interval Coverage",
+        "value": 0.91,
+        "baseline": "uncalibrated"
+      }
+    ]
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": "harmonized",
+    "method": "stratified_ratio",
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": false,
+    "reliability": "high",
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:41.223866+00:00"
+  }
+}

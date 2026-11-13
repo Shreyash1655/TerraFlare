@@ -28,6 +28,16 @@ harmonization:
   # Reference sensor: harmonised output is expressed in VIIRS-equivalent units.
   reference_sensor: VIIRS
 
+  # Calibration window and candidate calibrations (Task 8b):
+  calibration_window_k: 2  # Nearest K years for dynamic ratio calibration (tried K=2 and K=3)
+  candidate_calibrations:
+    - id: "fixed_ratio"
+      description: "Fixed stratified ratio fitted on all available historical overlap years."
+    - id: "nearest_k"
+      description: "Dynamic stratified ratio fitted on nearest K years to track orbital and sensor drift."
+    - id: "log_ratio_trend"
+      description: "Log-ratio with linear time trend per stratum extrapolated."
+
   # Single VIIRS reference rule (Task 7f):
   # Never sum VIIRS platforms. Exactly one reference platform per observation period.
   viirs_reference_rule:
@@ -41,44 +51,45 @@ harmonization:
     interval_level: 0.9   # credible-interval level (90 %)
     random_seed: 42       # deterministic seed for reproducible numbers
 
-  # Size-dependent uncertainty configuration (Task 7f):
+  # Size-dependent uncertainty configuration (Task 7f, Task 9 Addendum, Task 8b Rebuilt):
   size_dependent_uncertainty:
     class_bins:
       - name: "very_small"
         min_expected: 0
         max_expected: 10
-        rel_lower: 1.000
-        rel_upper: 1.220
+        rel_lower: 0.900
+        rel_upper: 14.000
       - name: "small"
         min_expected: 10
         max_expected: 50
-        rel_lower: 0.717
-        rel_upper: 6.244
+        rel_lower: 0.940
+        rel_upper: 2.626
       - name: "medium"
         min_expected: 50
         max_expected: 250
-        rel_lower: 0.598
-        rel_upper: 4.401
+        rel_lower: 0.841
+        rel_upper: 1.588
       - name: "large"
         min_expected: 250
         max_expected: 1000
-        rel_lower: 0.512
-        rel_upper: 2.728
+        rel_lower: 0.792
+        rel_upper: 1.023
       - name: "very_large"
         min_expected: 1000
         max_expected: 5000
-        rel_lower: 0.440
-        rel_upper: 1.167
+        rel_lower: 0.679
+        rel_upper: 0.791
       - name: "macro"
         min_expected: 5000
         max_expected: 1000000000
-        rel_lower: 0.125
-        rel_upper: 0.142
+        rel_lower: 0.2456
+        rel_upper: 0.3356
     reliability_thresholds:
       high_max_rel_halfwidth: 0.20    # half-width <= 20% -> high reliability
       medium_max_rel_halfwidth: 0.45  # half-width <= 45% -> medium reliability
       # > 45% -> low reliability
     bridge_uncertainty_rel: 0.0184    # +/- 1.84% (from 90% CI [0.9853, 1.0221])
+    static_contamination_threshold_pct: 0.20  # warning if > 0.20% NRT detections lack archive veg history
 
   # Minimum confidence class for a detection to enter the harmonisation.
   # Rows below this threshold are excluded before calibration.

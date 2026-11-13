@@ -91,7 +91,17 @@ def bbox_to_cells(
         (float(max_lat), float(max_lon)),
         (float(max_lat), float(min_lon)),
     ])
-    return set(h3.polygon_to_cells(poly, res))
+    cells = set(h3.polygon_to_cells(poly, res))
+    if not cells:
+        # For small bounding boxes smaller than a single H3 cell,
+        # assign the cell containing the centroid so small drawn areas are never dropped.
+        center_lat = (float(min_lat) + float(max_lat)) / 2.0
+        center_lon = (float(min_lon) + float(max_lon)) / 2.0
+        try:
+            cells = {h3.latlng_to_cell(center_lat, center_lon, res)}
+        except Exception:
+            pass
+    return cells
 
 
 def polygon_to_cells(
@@ -101,14 +111,30 @@ def polygon_to_cells(
     """Convert a GeoJSON Polygon dictionary or H3 shape to a set of H3 cells using H3 v4."""
     res = resolution if resolution is not None else get_default_resolution()
 
+    cells: set[str] = set()
     if isinstance(geojson_polygon, dict):
         shape = h3.geo_to_h3shape(geojson_polygon)
-        return set(h3.polygon_to_cells(shape, res))
+        cells = set(h3.polygon_to_cells(shape, res))
     elif isinstance(geojson_polygon, (h3.LatLngPoly, h3.LatLngMultiPoly)):
-        return set(h3.polygon_to_cells(geojson_polygon, res))
+        cells = set(h3.polygon_to_cells(geojson_polygon, res))
     elif hasattr(geojson_polygon, "__geo_interface__"):
         shape = h3.geo_to_h3shape(geojson_polygon.__geo_interface__)
-        return set(h3.polygon_to_cells(shape, res))
+        cells = set(h3.polygon_to_cells(shape, res))
     else:
         raise ValueError(f"Unsupported geometry type: {type(geojson_polygon)}")
+
+    if not cells and isinstance(geojson_polygon, dict):
+        try:
+            coords = geojson_polygon.get("coordinates", [])
+            if geojson_polygon.get("type") == "Feature":
+                coords = geojson_polygon.get("geometry", {}).get("coordinates", [])
+            while coords and isinstance(coords[0], (list, tuple)) and not isinstance(coords[0][0], (int, float)):
+                coords = coords[0]
+            if coords and len(coords) >= 1 and isinstance(coords[0], (list, tuple)) and len(coords[0]) >= 2:
+                lon, lat = float(coords[0][0]), float(coords[0][1])
+                cells = {h3.latlng_to_cell(lat, lon, res)}
+        except Exception:
+            pass
+
+    return cells
 

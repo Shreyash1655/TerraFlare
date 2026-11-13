@@ -1,0 +1,40 @@
+{
+  "data": {
+    "status": "ok",
+    "service": "TerraFlare API",
+    "data_mode": "real",
+    "is_synthetic": false,
+    "manifest_summary": {
+      "data_version": "2026.11.11.1",
+      "h3_resolution": 6,
+      "row_counts": {
+        "raw": 18019063,
+        "obs_all": 18019063,
+        "obs_clean": 18019063,
+        "cell_day_activity": 7572653,
+        "harmonized_cell_day": 5911591,
+        "monthly_activity": 313
+      },
+      "date_range": {
+        "start": "2000-11-01 00:00:00",
+        "end": "2026-11-09 00:00:00",
+        "min_date": "2000-11-01 00:00:00",
+        "max_date": "2026-11-09 00:00:00"
+      },
+      "git_commit": "10b508818339f8c224f8ead22fe610aae3a04df3"
+    },
+    "data_version": "2026.11.11.1"
+  },
+  "meta": {
+    "data_version": "2026.11.11.1",
+    "series": null,
+    "method": null,
+    "value_type": null,
+    "interval_applies_to": null,
+    "coverage": null,
+    "is_provisional": false,
+    "reliability": null,
+    "warnings": [],
+    "generated_at": "2026-11-12T17:15:40.247464+00:00"
+  }
+}

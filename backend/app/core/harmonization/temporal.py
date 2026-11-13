@@ -45,6 +45,8 @@ def aggregate_cell_day_activity(
     # Exclude static masked observations (archive type 2/3 and NRT in static mask)
     if "static_masked" in data.columns:
         data = data[data["static_masked"].fillna(False) != True]
+    if "qc_flags" in data.columns:
+        data = data[~data["qc_flags"].astype(str).str.contains("possible_static_source", na=False)]
 
     if data.empty:
         cols = [

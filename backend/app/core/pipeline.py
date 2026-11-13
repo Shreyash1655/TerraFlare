@@ -532,6 +532,8 @@ def stage_cell_day(
     valid_mask = obs_clean["is_valid"] == True if "is_valid" in obs_clean.columns else pd.Series(True, index=obs_clean.index)
     if "static_masked" in obs_clean.columns:
         valid_mask &= (obs_clean["static_masked"] != True)
+    if "qc_flags" in obs_clean.columns:
+        valid_mask &= ~obs_clean["qc_flags"].astype(str).str.contains("possible_static_source", na=False)
     if year:
         date_c = "local_date" if "local_date" in obs_clean.columns else "acq_date"
         valid_mask &= obs_clean[date_c].astype(str).str.startswith(str(year))
