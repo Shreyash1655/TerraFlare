@@ -19,3 +19,6 @@ pytest_out.txt
 .pytest_cache/
 .ruff_cache/
 *.zip
+
+*.zip
+pytest_out.txt
