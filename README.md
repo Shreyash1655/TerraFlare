@@ -297,3 +297,5 @@ Phases: 0 audit (done), 1 calibration and validation fixes (done), 2 dashboard (
 - Do not overwrite or delete data or backups; rename stale files with a `.stale-15-11` suffix.
 - Do not claim success from HTTP 200. Verify against the parquet.
 - Per-phase final report: data source, observation count, date range, reliability, exact files changed, test results.
+
+**Project demonstration:** [Watch the demo video](https://drive.google.com/file/d/1mqMYXPMp2-2OLNoxf-BVvSv9UWakWuoe/view?usp=sharing)
