@@ -33,7 +33,7 @@ const formatCompact = (value: number | null | undefined) => {
 };
 
 export default function HistoryPage() {
-  const [selectedRegion, setSelectedRegion] = useState('pwn');
+  const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedSensorView, setSelectedSensorView] =
     useState<SensorView>('harmonized');
 
@@ -210,28 +210,26 @@ export default function HistoryPage() {
                 location_on
               </span>
 
-              <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
-                className="bg-transparent font-label-mono text-xs text-[#dfe2f1] focus:outline-none cursor-pointer"
-                disabled={isLoading && regions.length === 0}
-              >
-                {regions.length === 0 && (
-                  <option value="pwn" className="bg-[#171b26]">
-                    Western North America (PacNW)
-                  </option>
-                )}
+             <select
+  value={selectedRegion}
+  onChange={(e) => setSelectedRegion(e.target.value)}
+  className="bg-transparent font-label-mono text-xs text-[#dfe2f1] focus:outline-none cursor-pointer"
+  disabled={isLoading && regions.length === 0}
+>
+  {regions.length === 0 && (
+    <option value="">No regions available</option>
+  )}
 
-                {regions.map((region) => (
-                  <option
-                    key={region.region_id}
-                    value={region.region_id}
-                    className="bg-[#171b26]"
-                  >
-                    {region.name}
-                  </option>
-                ))}
-              </select>
+  {regions.map((region) => (
+    <option
+      key={region.region_id}
+      value={region.region_id}
+      className="bg-[#171b26]"
+    >
+      {region.name}
+    </option>
+  ))}
+</select>
             </div>
 
             <div className="flex items-center bg-[#171b26] p-0.5 rounded border border-[#262a35]">

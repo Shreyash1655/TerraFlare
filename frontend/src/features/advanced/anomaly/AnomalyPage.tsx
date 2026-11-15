@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from 'react';
 import { getAnomalies, getAnomalyExplain } from '../../../api/advanced';
 import type {
@@ -6,6 +5,8 @@ import type {
   AnomalyPeriod,
   AnomalyExplainData,
 } from '../../../api/types/advanced';
+import InsufficientHistory from '../shared/InsufficientHistory';
+import ShortWindowAnomalies from '../shared/ShortWindowAnomalies';
 
 function formatNumber(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -158,9 +159,17 @@ export default function AnomalyPage() {
     };
   }, []);
 
-  // Fetch explanation for the selected anomaly.
+  const selectedAnomaly = useMemo(
+    () =>
+      anomalies.find((item) => item.period_start === selectedPeriod) ?? null,
+    [anomalies, selectedPeriod],
+  );
+
+  const selectedEnd = selectedAnomaly?.period_end ?? null;
+
+  // Fetch explanation for the selected anomaly (backend needs start AND end).
   useEffect(() => {
-    if (!selectedPeriod) {
+    if (!selectedPeriod || !selectedEnd) {
       setExplanation(null);
       setExplanationError(null);
       setLoadingExplanation(false);
@@ -168,6 +177,7 @@ export default function AnomalyPage() {
     }
 
     const periodStart = selectedPeriod;
+    const periodEnd = selectedEnd;
     let active = true;
 
     async function loadExplanation() {
@@ -177,7 +187,8 @@ export default function AnomalyPage() {
         setExplanation(null);
 
         const response = await getAnomalyExplain({
-          period_start: periodStart,
+          start: periodStart,
+          end: periodEnd,
         });
 
         if (!active) return;
@@ -201,13 +212,7 @@ export default function AnomalyPage() {
     return () => {
       active = false;
     };
-  }, [selectedPeriod]);
-
-  const selectedAnomaly = useMemo(
-    () =>
-      anomalies.find((item) => item.period_start === selectedPeriod) ?? null,
-    [anomalies, selectedPeriod],
-  );
+  }, [selectedPeriod, selectedEnd]);
 
   const topDates = explanation?.top_dates ?? [];
   const topCells = explanation?.top_cells ?? [];
@@ -296,39 +301,12 @@ export default function AnomalyPage() {
           </div>
         )}
 
-        {/* Error */}
-        {!loading && error && (
-          <div className="p-5 rounded-lg bg-[#301b20] border border-[#75343d]">
-            <p className="text-[#ffbcb7] font-semibold text-sm">
-              Unable to load anomaly data
-            </p>
-
-            <p className="text-[#d8c3ad] text-xs mt-2">{error}</p>
-
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-3 px-3 py-2 rounded bg-[#ffc174] text-[#0a0e18] text-xs font-bold"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && !error && anomalies.length === 0 && (
-          <div className="p-8 text-center rounded-lg bg-[#1c1f2a] border border-[#262a35]">
-            <span className="material-symbols-outlined text-3xl text-[#a08e7a]">
-              analytics
-            </span>
-
-            <p className="text-[#dfe2f1] font-semibold mt-2">
-              No anomaly periods found
-            </p>
-
-            <p className="text-[#a08e7a] text-xs mt-1">
-              The current dataset does not contain any scored anomaly periods.
-            </p>
-          </div>
+        {/* Error or empty: explicit insufficient-history state */}
+               {!loading && (error || anomalies.length === 0) && (
+          <>
+            <InsufficientHistory module="anomaly" detail={error} />
+            <ShortWindowAnomalies />
+          </>
         )}
 
         {!loading && !error && anomalies.length > 0 && (

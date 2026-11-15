@@ -1,13 +1,11 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import {
-  getRegions,
-  getHotspots,
-  getHotspotCells,
-} from '../../../api/core';
+import { getRegions, getHotspots, getHotspotCells } from '../../../api/core';
+
+maplibregl.setWorkerUrl(workerUrl);
 
 type HotspotsData = Awaited<ReturnType<typeof getHotspots>>['data'];
 type CellsData = Awaited<ReturnType<typeof getHotspotCells>>['data'];
@@ -15,26 +13,66 @@ type RegionsData = Awaited<ReturnType<typeof getRegions>>['data'];
 
 type ActiveLayer = 'hex' | 'raw' | 'frp';
 
-const MAP_STYLE =
-  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+// Optional fields the FIRMS backend adds; typed locally so older types still compile.
+type CellExtra = {
+  frp_sum_modis?: number | null;
+  frp_sum_viirs?: number | null;
+};
+type CellsMeta = {
+  total_cells?: number;
+  truncated?: boolean;
+  window?: { start?: string | null; end?: string | null; basis?: string };
+};
+type HotspotsMeta = { total_matching?: number; truncated?: boolean };
+
+// OSM tiles (no API key), desaturated and dimmed to look dark.
+const MAP_STYLE = {
+  version: 8,
+  sources: {
+    basemap: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#0B0F19' } },
+    {
+      id: 'basemap',
+      type: 'raster',
+      source: 'basemap',
+      paint: {
+        'raster-saturation': -0.85,
+        'raster-brightness-max': 0.38,
+        'raster-contrast': 0.15,
+      },
+    },
+  ],
+} as maplibregl.StyleSpecification;
+
+const SRC = 'terraflare-hotspots';
+const LYR = 'terraflare-hotspot-points';
 
 const formatNumber = (value: number | null | undefined) =>
   value == null
     ? '—'
-    : value.toLocaleString('en-IN', {
-        maximumFractionDigits: 2,
-      });
+    : value.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+const EMPTY_FC = { type: 'FeatureCollection', features: [] } as unknown as HotspotsData;
 
 export default function HotspotMapPage() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 
+  const [mapReady, setMapReady] = useState(false);
   const [activeLayer, setActiveLayer] = useState<ActiveLayer>('hex');
-  const [h3Res, setH3Res] = useState(7);
+  const [h3Res, setH3Res] = useState(5);
   const [showModis, setShowModis] = useState(true);
   const [showViirs, setShowViirs] = useState(true);
 
-  const [selectedRegion, setSelectedRegion] = useState('pwn');
+  const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedCellId, setSelectedCellId] = useState('');
 
   const [regions, setRegions] = useState<RegionsData['regions']>([]);
@@ -46,26 +84,54 @@ export default function HotspotMapPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const selectedCell = useMemo(
-    () =>
-      cells?.cells.find((cell) => cell.h3_cell === selectedCellId) ?? null,
+    () => cells?.cells.find((cell) => cell.h3_cell === selectedCellId) ?? null,
     [cells, selectedCellId]
   );
 
-  const region = regions.find(
-    (item) => item.region_id === selectedRegion
-  );
+  const region = regions.find((item) => item.region_id === selectedRegion);
 
   const selectedSensors = useMemo(() => {
     const sensors: string[] = [];
-
     if (showModis) sensors.push('MODIS');
     if (showViirs) sensors.push('VIIRS');
-
     return sensors;
   }, [showModis, showViirs]);
 
-  // Load regions and geospatial data.
+  const cellsMeta = cells as unknown as CellsMeta | null;
+  const hotspotsMeta = hotspots as unknown as HotspotsMeta | null;
+  const selectedExtra = selectedCell as unknown as CellExtra | null;
+
+  // Load regions first so a valid region is always selected.
   useEffect(() => {
+    let cancelled = false;
+
+    getRegions()
+      .then((response) => {
+        if (cancelled) return;
+        const list = response.data.regions;
+        setRegions(list);
+        setSelectedRegion((current) =>
+          list.some((item) => item.region_id === current)
+            ? current
+            : list[0]?.region_id ?? ''
+        );
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Unable to load regions.');
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load geospatial data.
+  useEffect(() => {
+    if (!selectedRegion) return;
+
     let cancelled = false;
 
     async function loadData() {
@@ -73,44 +139,39 @@ export default function HotspotMapPage() {
       setError('');
 
       try {
-        const [regionResponse, hotspotResponse, cellResponse] =
-          await Promise.all([
-            getRegions(),
-            getHotspots({
-              region_id: selectedRegion,
-              sensors: selectedSensors.join(','),
-              limit: 10000,
-            }),
-            getHotspotCells({
-              region_id: selectedRegion,
-              h3_res: h3Res,
-            }),
-          ]);
+        const cellPromise = getHotspotCells({
+          region_id: selectedRegion,
+          h3_res: h3Res,
+        });
+        const hotspotPromise =
+          selectedSensors.length === 0
+            ? Promise.resolve(null)
+            : getHotspots({
+                region_id: selectedRegion,
+                sensors: selectedSensors.join(','),
+                limit: 10000,
+              });
+
+        const [hotspotResponse, cellResponse] = await Promise.all([
+          hotspotPromise,
+          cellPromise,
+        ]);
 
         if (cancelled) return;
 
-        setRegions(regionResponse.data.regions);
-        setHotspots(hotspotResponse.data);
+        setHotspots(hotspotResponse ? hotspotResponse.data : EMPTY_FC);
         setCells(cellResponse.data);
 
-        setSelectedCellId((current) => {
-          const stillExists = cellResponse.data.cells.some(
-            (cell) => cell.h3_cell === current
-          );
-
-          return stillExists
+        setSelectedCellId((current) =>
+          cellResponse.data.cells.some((cell) => cell.h3_cell === current)
             ? current
-            : cellResponse.data.cells[0]?.h3_cell ?? '';
-        });
+            : cellResponse.data.cells[0]?.h3_cell ?? ''
+        );
       } catch (err) {
         if (cancelled) return;
-
         console.error('Failed to load hotspot data:', err);
-
         setError(
-          err instanceof Error
-            ? err.message
-            : 'Unable to load geospatial data.'
+          err instanceof Error ? err.message : 'Unable to load geospatial data.'
         );
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -131,21 +192,25 @@ export default function HotspotMapPage() {
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: MAP_STYLE,
-      center: [-120, 45],
-      zoom: 3,
-      attributionControl: {
-  compact: true,
-},
+      center: [0, 20],
+      zoom: 1.5,
+      minZoom: 1,
+      renderWorldCopies: false,
+      attributionControl: { compact: true },
     });
 
-    map.addControl(
-      new maplibregl.NavigationControl(),
-      'top-right'
-    );
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    map.on('load', () => {
+      map.resize();
+      setMapReady(true);
+    });
+    map.on('error', (e) => console.error('MapLibre error:', e.error));
 
     mapRef.current = map;
 
     return () => {
+      setMapReady(false);
       map.remove();
       mapRef.current = null;
     };
@@ -154,8 +219,7 @@ export default function HotspotMapPage() {
   // Update map position when region changes.
   useEffect(() => {
     const map = mapRef.current;
-
-    if (!map || !region?.bbox) return;
+    if (!map || !mapReady || !region?.bbox) return;
 
     const [west, south, east, north] = region.bbox;
 
@@ -164,183 +228,119 @@ export default function HotspotMapPage() {
         [west, south],
         [east, north],
       ],
-      {
-        padding: 70,
-        duration: 1000,
-        maxZoom: 8,
-      }
+      { padding: 70, duration: 1000, maxZoom: 8 }
     );
-  }, [region]);
+  }, [region, mapReady]);
 
-  // Add actual hotspot GeoJSON and update its styling.
+  // Add hotspot GeoJSON and update styling.
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !hotspots || !mapReady) return;
 
-    if (!map || !hotspots) return;
+    const data = hotspots as unknown as GeoJSON.FeatureCollection;
 
-    const updateSourceAndLayer = () => {
-      const existingSource = map.getSource(
-        'terraflare-hotspots'
-      ) as maplibregl.GeoJSONSource | undefined;
+    const existingSource = map.getSource(SRC) as
+      | maplibregl.GeoJSONSource
+      | undefined;
 
-      if (existingSource) {
-        existingSource.setData(hotspots);
-      } else {
-        map.addSource('terraflare-hotspots', {
-          type: 'geojson',
-          data: hotspots,
-        });
-      }
-
-      if (!map.getLayer('terraflare-hotspot-points')) {
-        map.addLayer({
-          id: 'terraflare-hotspot-points',
-          type: 'circle',
-          source: 'terraflare-hotspots',
-          paint: {
-            'circle-radius': 5,
-            'circle-color': '#fb923c',
-            'circle-opacity': 0.85,
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 0.5,
-          },
-        });
-
-        map.on(
-          'click',
-          'terraflare-hotspot-points',
-          (event: maplibregl.MapLayerMouseEvent) => {
-            const feature = event.features?.[0];
-
-            if (!feature) return;
-
-            const geometry = feature.geometry;
-
-            if (geometry.type !== 'Point') return;
-
-            const coordinates = geometry.coordinates as [
-              number,
-              number
-            ];
-
-            const properties = feature.properties ?? {};
-
-            const content = document.createElement('div');
-            content.style.color = '#111827';
-            content.style.fontFamily = 'monospace';
-            content.style.fontSize = '12px';
-
-            const fields = [
-              ['Sensor', properties.sensor_family ?? 'Unknown'],
-              ['Date', properties.acq_datetime_utc ?? '—'],
-              ['Confidence', properties.confidence_class ?? '—'],
-              ['FRP', `${properties.frp_mw ?? '—'} MW`],
-            ];
-
-            fields.forEach(([label, value]) => {
-              const line = document.createElement('div');
-              line.textContent = `${label}: ${value}`;
-              content.appendChild(line);
-            });
-
-            const heading = document.createElement('strong');
-            heading.textContent = 'Satellite Observation';
-            content.prepend(heading);
-
-            new maplibregl.Popup()
-              .setLngLat(coordinates)
-              .setDOMContent(content)
-              .addTo(map);
-          }
-        );
-
-        map.on('mouseenter', 'terraflare-hotspot-points', () => {
-          map.getCanvas().style.cursor = 'pointer';
-        });
-
-        map.on('mouseleave', 'terraflare-hotspot-points', () => {
-          map.getCanvas().style.cursor = '';
-        });
-      }
-
-      // Update paint properties whenever the active layer changes.
-      if (map.getLayer('terraflare-hotspot-points')) {
-        if (activeLayer === 'frp') {
-          map.setPaintProperty(
-            'terraflare-hotspot-points',
-            'circle-radius',
-            [
-              'interpolate',
-              ['linear'],
-              ['coalesce', ['get', 'frp_mw'], 0],
-              0, 3,
-              50, 6,
-              200, 10,
-              500, 15,
-            ]
-          );
-
-          map.setPaintProperty(
-            'terraflare-hotspot-points',
-            'circle-color',
-            [
-              'interpolate',
-              ['linear'],
-              ['coalesce', ['get', 'frp_mw'], 0],
-              0, '#7bd0ff',
-              50, '#f59e0b',
-              200, '#ff938c',
-              500, '#ef4444',
-            ]
-          );
-        } else {
-          map.setPaintProperty(
-            'terraflare-hotspot-points',
-            'circle-radius',
-            5
-          );
-
-          map.setPaintProperty(
-            'terraflare-hotspot-points',
-            'circle-color',
-            [
-              'match',
-              ['get', 'sensor_family'],
-              'MODIS', '#c084fc',
-              'VIIRS', '#fb923c',
-              '#7bd0ff',
-            ]
-          );
-        }
-      }
-    };
-
-    if (map.isStyleLoaded()) {
-      updateSourceAndLayer();
+    if (existingSource) {
+      existingSource.setData(data);
     } else {
-      map.once('load', updateSourceAndLayer);
+      map.addSource(SRC, { type: 'geojson', data });
     }
 
-    return () => {
-      map.off('load', updateSourceAndLayer);
-    };
-  }, [hotspots, activeLayer]);
+    if (!map.getLayer(LYR)) {
+      map.addLayer({
+        id: LYR,
+        type: 'circle',
+        source: SRC,
+        paint: {
+          'circle-radius': 3,
+          'circle-color': '#fb923c',
+          'circle-opacity': 0.8,
+          'circle-stroke-width': 0,
+        },
+      });
+
+      map.on('click', LYR, (event: maplibregl.MapLayerMouseEvent) => {
+        const feature = event.features?.[0];
+        if (!feature || feature.geometry.type !== 'Point') return;
+
+        const coordinates = feature.geometry.coordinates as [number, number];
+        const p = feature.properties ?? {};
+
+        const content = document.createElement('div');
+        content.style.color = '#111827';
+        content.style.fontFamily = 'monospace';
+        content.style.fontSize = '12px';
+
+        const heading = document.createElement('strong');
+        heading.textContent = 'Satellite Observation';
+        content.appendChild(heading);
+
+        const fields: [string, unknown][] = [
+          ['Sensor', p.sensor_family ?? 'Unknown'],
+          ['Platform', p.platform ?? '—'],
+          ['Processing', p.processing_stream ?? p.product_type ?? 'not available'],
+          ['Time (UTC)', p.acq_datetime_utc ?? '—'],
+          ['Confidence', `${p.confidence_raw ?? '—'} (${p.confidence_class ?? '—'})`],
+          ['FRP', `${p.frp_mw ?? '—'} MW`],
+          ['Source', p.source_dataset ?? '—'],
+        ];
+
+        fields.forEach(([label, value]) => {
+          const line = document.createElement('div');
+          line.textContent = `${label}: ${String(value)}`;
+          content.appendChild(line);
+        });
+
+        new maplibregl.Popup()
+          .setLngLat(coordinates)
+          .setDOMContent(content)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', LYR, () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', LYR, () => {
+        map.getCanvas().style.cursor = '';
+      });
+    }
+
+    if (activeLayer === 'frp') {
+      map.setPaintProperty(LYR, 'circle-radius', [
+        'interpolate', ['linear'], ['coalesce', ['get', 'frp_mw'], 0],
+        0, 2, 50, 4, 200, 8, 500, 12,
+      ]);
+      map.setPaintProperty(LYR, 'circle-color', [
+        'interpolate', ['linear'], ['coalesce', ['get', 'frp_mw'], 0],
+        0, '#7bd0ff', 50, '#f59e0b', 200, '#ff938c', 500, '#ef4444',
+      ]);
+    } else {
+      map.setPaintProperty(LYR, 'circle-radius', 3);
+      map.setPaintProperty(LYR, 'circle-color', [
+        'match',
+        ['upcase', ['to-string', ['get', 'sensor_family']]],
+        'MODIS', '#c084fc',
+        'VIIRS', '#fb923c',
+        '#7bd0ff',
+      ]);
+    }
+  }, [hotspots, activeLayer, mapReady]);
 
   const handleCellSelect = useCallback((cellId: string) => {
     setSelectedCellId(cellId);
   }, []);
 
-  const hotspotCount = hotspots?.features.length ?? 0;
+  const features = hotspots?.features ?? [];
+  const hotspotCount = features.length;
+  const totalMatching = hotspotsMeta?.total_matching ?? hotspotCount;
 
-  const modisCount =
-    hotspots?.features.filter(
-      (feature) => feature.properties?.sensor_family === 'MODIS'
-    ).length ?? 0;
-
-  const viirsCount =
-    hotspots?.features.filter(
-      (feature) => feature.properties?.sensor_family === 'VIIRS'
-    ).length ?? 0;
+  const sensorOf = (f: (typeof features)[number]) =>
+    String(f.properties?.sensor_family ?? '').toUpperCase();
+  const modisCount = features.filter((f) => sensorOf(f) === 'MODIS').length;
+  const viirsCount = features.filter((f) => sensorOf(f) === 'VIIRS').length;
 
   return (
     <div className="flex flex-col h-full min-h-[700px] w-full overflow-hidden">
@@ -370,7 +370,7 @@ export default function HotspotMapPage() {
           </span>
 
           {([
-            ['hex', 'Harmonized Cells'],
+            ['hex', 'H3 Cells'],
             ['raw', 'Raw Hotspots'],
             ['frp', 'FRP Intensity'],
           ] as const).map(([value, label]) => (
@@ -398,7 +398,7 @@ export default function HotspotMapPage() {
               H3 RES:
             </span>
 
-            {[6, 7, 8].map((res) => (
+            {[4, 5, 6, 7].map((res) => (
               <button
                 key={res}
                 onClick={() => setH3Res(res)}
@@ -440,13 +440,11 @@ export default function HotspotMapPage() {
         </div>
 
         <div className="flex items-center gap-4 font-caption-mono text-[10px] text-[#a08e7a]">
-          <span>DETECTIONS: {formatNumber(hotspotCount)}</span>
-          <span className="text-[#c084fc]">
-            MODIS: {formatNumber(modisCount)}
+          <span>
+            SHOWN: {formatNumber(hotspotCount)} / MATCHING: {formatNumber(totalMatching)}
           </span>
-          <span className="text-[#fb923c]">
-            VIIRS: {formatNumber(viirsCount)}
-          </span>
+          <span className="text-[#c084fc]">MODIS: {formatNumber(modisCount)}</span>
+          <span className="text-[#fb923c]">VIIRS: {formatNumber(viirsCount)}</span>
         </div>
       </div>
 
@@ -454,7 +452,7 @@ export default function HotspotMapPage() {
       <div className="relative flex-1 min-h-[520px] bg-[#0B0F19]">
         <div
           ref={mapContainerRef}
-          className="absolute inset-0"
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
         />
 
         {/* Map status */}
@@ -480,9 +478,7 @@ export default function HotspotMapPage() {
         <aside className="absolute top-4 right-4 z-10 w-[310px] max-w-[calc(100%-2rem)] max-h-[calc(100%-2rem)] overflow-y-auto rounded bg-[#1c1f2a]/95 backdrop-blur-md p-4 border border-[#262a35] shadow-2xl">
           <div className="flex items-center justify-between mb-3">
             <span className="font-caption-mono text-[10px] text-[#7bd0ff] font-bold">
-              {activeLayer === 'hex'
-                ? 'H3 CELL INSPECTOR'
-                : 'MAP DATA INSPECTOR'}
+              {activeLayer === 'hex' ? 'H3 CELL INSPECTOR' : 'MAP DATA INSPECTOR'}
             </span>
 
             <span className="font-caption-mono text-[9px] px-2 py-1 rounded bg-[#00a6e0] text-[#00374d] font-bold">
@@ -516,48 +512,16 @@ export default function HotspotMapPage() {
                 {selectedCell.h3_cell}
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 bg-[#171b26] p-3 rounded border border-[#262a35] font-caption-mono text-xs">
-                <div>
-                  <span className="text-[#a08e7a] text-[10px] block">
-                    HARMONIZED VALUE
-                  </span>
-                  <span className="text-[#ffc174] font-bold">
-                    {formatNumber(selectedCell.harmonized_value)}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[#a08e7a] text-[10px] block">
-                    LOWER INTERVAL
-                  </span>
-                  <span className="text-[#dfe2f1] font-bold">
-                    {formatNumber(selectedCell.lower)}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[#a08e7a] text-[10px] block">
-                    UPPER INTERVAL
-                  </span>
-                  <span className="text-[#dfe2f1] font-bold">
-                    {formatNumber(selectedCell.upper)}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[#a08e7a] text-[10px] block">
-                    H3 RESOLUTION
-                  </span>
-                  <span className="text-[#7bd0ff] font-bold">
-                    {cells?.h3_resolution ?? h3Res}
-                  </span>
-                </div>
+              <div className="mt-3 p-3 rounded border border-[#262a35] bg-[#171b26] font-caption-mono text-[10px] text-[#a08e7a]">
+                Harmonized value: not available at cell level. In the VIIRS era the
+                harmonized series equals the NOAA-20 observation, so no MODIS
+                conversion is applied and cell-level MODIS-equivalent values are not produced.
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-caption-mono">
                 <div className="p-2 rounded bg-[#171b26]">
                   <span className="block text-[#c084fc] text-[10px]">
-                    MODIS OBSERVED
+                    MODIS DETECTIONS
                   </span>
                   <span className="text-[#dfe2f1] font-bold">
                     {formatNumber(selectedCell.modis_observed)}
@@ -566,13 +530,40 @@ export default function HotspotMapPage() {
 
                 <div className="p-2 rounded bg-[#171b26]">
                   <span className="block text-[#fb923c] text-[10px]">
-                    VIIRS OBSERVED
+                    VIIRS DETECTIONS
                   </span>
                   <span className="text-[#dfe2f1] font-bold">
                     {formatNumber(selectedCell.viirs_observed)}
                   </span>
                 </div>
+
+                <div className="p-2 rounded bg-[#171b26]">
+                  <span className="block text-[#c084fc] text-[10px]">
+                    MODIS FRP SUM (MW)
+                  </span>
+                  <span className="text-[#dfe2f1] font-bold">
+                    {formatNumber(selectedExtra?.frp_sum_modis)}
+                  </span>
+                </div>
+
+                <div className="p-2 rounded bg-[#171b26]">
+                  <span className="block text-[#fb923c] text-[10px]">
+                    VIIRS FRP SUM (MW)
+                  </span>
+                  <span className="text-[#dfe2f1] font-bold">
+                    {formatNumber(selectedExtra?.frp_sum_viirs)}
+                  </span>
+                </div>
               </div>
+
+              {cellsMeta?.window && (
+                <div className="mt-3 font-caption-mono text-[10px] text-[#a08e7a] break-words">
+                  WINDOW ({cellsMeta.window.basis ?? '—'}):
+                  <br />
+                  {cellsMeta.window.start ?? '—'}
+                  <br />→ {cellsMeta.window.end ?? '—'}
+                </div>
+              )}
             </>
           )}
 
@@ -584,7 +575,11 @@ export default function HotspotMapPage() {
 
           <div className="mt-4 pt-3 border-t border-[#262a35]">
             <div className="font-caption-mono text-[10px] text-[#7bd0ff] mb-2">
-              AVAILABLE H3 CELLS ({cells?.cells.length ?? 0})
+              TOP H3 CELLS ({cells?.cells.length ?? 0}
+              {cellsMeta?.total_cells != null
+                ? ` of ${formatNumber(cellsMeta.total_cells)}`
+                : ''}
+              )
             </div>
 
             <div className="max-h-48 overflow-y-auto space-y-1">
@@ -601,7 +596,10 @@ export default function HotspotMapPage() {
                 >
                   <div className="flex justify-between gap-2">
                     <span className="truncate">{cell.h3_cell}</span>
-                    <span>{formatNumber(cell.harmonized_value)}</span>
+                    <span>
+                      M {formatNumber(cell.modis_observed)} · V{' '}
+                      {formatNumber(cell.viirs_observed)}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -653,10 +651,13 @@ export default function HotspotMapPage() {
       {/* Scientific limitation note */}
       <div className="px-5 py-2 bg-[#171b26] border-t border-[#262a35]">
         <p className="font-caption-mono text-[10px] text-[#a08e7a]">
-          Hotspot detections represent satellite-observed thermal anomalies,
-          not confirmed unique fires. H3 values are displayed from the
-          harmonized dataset; polygon geometry is not currently supplied by
-          the cell API.
+          Data combine standard-processing (SP) history and provisional NRT
+          (near real-time) detections; NRT is not science-quality. Hotspots are
+          satellite-observed thermal anomalies, not confirmed unique fires, and
+          are not merged across sensors. MODIS (1 km) and VIIRS (375 m) counts
+          differ in resolution and sensitivity. Map points are truncated to an
+          equal share per sensor, highest FRP first. Polygon geometry is not
+          supplied by the cell API.
         </p>
       </div>
     </div>

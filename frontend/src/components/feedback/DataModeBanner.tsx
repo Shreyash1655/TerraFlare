@@ -5,7 +5,7 @@ interface DataModeBannerProps {
 }
 
 export default function DataModeBanner({
-  isSynthetic = true,
+  isSynthetic = false,
   batchId = 'ING-202611-042',
   className = '',
 }: DataModeBannerProps) {
@@ -30,7 +30,7 @@ export default function DataModeBanner({
         </span>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-[#7bd0ff] animate-ping"></span>
-          <span className="font-caption-mono text-[11px] text-[#7bd0ff] font-medium">PIPELINE VERIFIED</span>
+          <span className="font-caption-mono text-[11px] text-[#7bd0ff] font-medium">SYNTHETIC — NOT NASA DATA</span>
         </div>
       </div>
     </aside>

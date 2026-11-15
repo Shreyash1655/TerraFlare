@@ -1,4 +1,3 @@
-
 import { apiClient, API_MODE, request } from './client';
 import type { ApiResponse, ApiMeta } from './types/common';
 
@@ -14,6 +13,8 @@ import type {
   CurrentVsMedianData,
   ComparisonData,
   HarmonizationMethodData,
+  CoverageData,
+  FrpCalibrationData,
 } from './types/core';
 
 // --------------------------------------------------
@@ -444,7 +445,7 @@ export async function getHarmonizationMethod(): Promise<
           baseline: 'M0 (48.2%)',
         },
         {
-          metric: 'Rank-Corr (ρ)',
+          metric: 'Rank-Corr (rho)',
           value: 0.89,
           baseline: 'M0 (0.72)',
         },
@@ -456,4 +457,20 @@ export async function getHarmonizationMethod(): Promise<
       ],
     })
   );
+}
+
+// --------------------------------------------------
+// HARMONIZATION COVERAGE (live only, no mock fallback)
+// --------------------------------------------------
+
+export async function getHarmonizationCoverage(): Promise<ApiResponse<CoverageData>> {
+  return request<CoverageData>({ url: '/harmonization/coverage', method: 'GET' });
+}
+
+// --------------------------------------------------
+// FRP CALIBRATION (live only, no mock fallback)
+// --------------------------------------------------
+
+export async function getFrpCalibration(): Promise<ApiResponse<FrpCalibrationData>> {
+  return request<FrpCalibrationData>({ url: '/harmonization/frp-calibration', method: 'GET' });
 }

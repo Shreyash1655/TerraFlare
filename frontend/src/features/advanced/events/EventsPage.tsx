@@ -1,11 +1,20 @@
-
 import { useEffect, useMemo, useState } from 'react';
-import { getEvents, getEventDetail } from '../../../api/advanced';
+import {
+  getEvents,
+  getEventDetail,
+  getHistoryStatus,
+} from '../../../api/advanced';
 import type {
   EventsData,
   EventEpisode,
   EventDetailData,
 } from '../../../api/types/advanced';
+import ScopeControls, {
+  INDIA_BBOX,
+  isCapError,
+  scopeToParams,
+  type Scope,
+} from '../shared/ScopeControls';
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '—';
@@ -67,7 +76,14 @@ function formatSensors(sensors: string[] | undefined) {
 }
 
 export default function EventsPage() {
+  const [scope, setScope] = useState<Scope | null>(null);
+  const [bounds, setBounds] = useState<{
+    min: string | null;
+    max: string | null;
+  }>({ min: null, max: null });
+
   const [events, setEvents] = useState<EventEpisode[]>([]);
+  const [summary, setSummary] = useState<EventsData | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const [eventDetail, setEventDetail] = useState<EventDetailData | null>(null);
@@ -77,34 +93,63 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  const [dataMode, setDataMode] = useState<'fixture' | 'real'>('fixture');
+  const [dataMode, setDataMode] = useState<string>('fixture');
   const [isSynthetic, setIsSynthetic] = useState(false);
 
-  // Fetch clustered activity episodes.
+  // Default scope: latest loaded day, VIIRS, India box (editable).
   useEffect(() => {
     let active = true;
 
-    async function loadEvents() {
+    getHistoryStatus()
+      .then((r) => {
+        if (!active) return;
+        const [first, last] = r.data.date_range;
+        setBounds({ min: first, max: last });
+        setScope({
+          bbox: INDIA_BBOX,
+          start: last ?? '',
+          end: last ?? '',
+          sensor: 'viirs',
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setScope({ bbox: INDIA_BBOX, start: '', end: '', sensor: 'viirs' });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Fetch clustered activity episodes for the chosen scope.
+  useEffect(() => {
+    if (!scope) return;
+
+    let active = true;
+
+    async function loadEvents(current: Scope) {
       try {
         setLoadingEvents(true);
         setError(null);
 
-        const response = await getEvents();
+        const response = await getEvents(scopeToParams(current));
 
         if (!active) return;
 
         const data: EventsData = response.data;
 
+        setSummary(data);
         setEvents(data.events ?? []);
         setDataMode(response.meta.data_mode);
         setIsSynthetic(response.meta.is_synthetic);
 
-        setSelectedEventId((current) => {
+        setSelectedEventId((existing) => {
           if (
-            current &&
-            data.events?.some((event) => event.event_id === current)
+            existing &&
+            data.events?.some((event) => event.event_id === existing)
           ) {
-            return current;
+            return existing;
           }
 
           return data.events?.[0]?.event_id ?? null;
@@ -112,6 +157,9 @@ export default function EventsPage() {
       } catch (err) {
         if (!active) return;
 
+        setEvents([]);
+        setSummary(null);
+        setSelectedEventId(null);
         setError(
           err instanceof Error
             ? err.message
@@ -122,22 +170,22 @@ export default function EventsPage() {
       }
     }
 
-    loadEvents();
+    loadEvents(scope);
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [scope]);
 
   // Fetch details whenever the selected episode changes.
   useEffect(() => {
-    if (!selectedEventId) {
+    if (!selectedEventId || !scope) {
       setEventDetail(null);
       return;
     }
 
-    // Capture the non-null ID for use inside the async function.
     const eventId = selectedEventId;
+    const current = scope;
     let active = true;
 
     async function loadEventDetail() {
@@ -146,7 +194,7 @@ export default function EventsPage() {
         setDetailError(null);
         setEventDetail(null);
 
-        const response = await getEventDetail(eventId);
+        const response = await getEventDetail(eventId, scopeToParams(current));
 
         if (!active) return;
 
@@ -169,7 +217,7 @@ export default function EventsPage() {
     return () => {
       active = false;
     };
-  }, [selectedEventId]);
+  }, [selectedEventId, scope]);
 
   const selectedEvent = useMemo(
     () =>
@@ -265,6 +313,16 @@ export default function EventsPage() {
       </section>
 
       <div className="w-full px-6 py-6 space-y-6">
+        {scope && (
+          <ScopeControls
+            scope={scope}
+            minDate={bounds.min}
+            maxDate={bounds.max}
+            disabled={loadingEvents}
+            onApply={setScope}
+          />
+        )}
+
         {/* Loading */}
         {loadingEvents && (
           <div className="p-8 text-center rounded-lg bg-[#1c1f2a] border border-[#262a35]">
@@ -274,19 +332,22 @@ export default function EventsPage() {
           </div>
         )}
 
-        {/* Error */}
+        {/* Limit / error */}
         {!loadingEvents && error && (
           <div className="p-5 rounded-lg bg-[#301b20] border border-[#75343d]">
             <p className="text-[#ffbcb7] font-semibold text-sm">
-              Unable to load activity episodes
+              {isCapError(error)
+                ? 'Too many detections for this selection'
+                : 'Unable to load activity episodes'}
             </p>
             <p className="text-[#d8c3ad] text-xs mt-2">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-3 px-3 py-2 rounded bg-[#ffc174] text-[#0a0e18] text-xs font-bold"
-            >
-              Retry
-            </button>
+            {isCapError(error) && (
+              <p className="text-[#a08e7a] text-xs mt-2">
+                Clustering is capped to protect the server. Shrink the
+                bounding box or choose a single day, then press Apply. No
+                data was sampled or dropped.
+              </p>
+            )}
           </div>
         )}
 
@@ -300,7 +361,8 @@ export default function EventsPage() {
               No activity episodes found
             </p>
             <p className="text-[#a08e7a] text-xs mt-1">
-              No clustered episodes are available for the current dataset.
+              No clustered episodes in this box and date range. Try a larger
+              box or another day. This does not mean no fire occurred.
             </p>
           </div>
         )}
@@ -318,6 +380,16 @@ export default function EventsPage() {
                   {events.length} EPISODES
                 </span>
               </div>
+
+              {summary && (
+                <p className="mb-3 text-[10px] font-caption-mono text-[#a08e7a]">
+                  Points processed: {formatNumber(summary.n_points_processed)}{' '}
+                  • Noise: {formatNumber(summary.n_noise_points)}
+                  {summary.truncated
+                    ? ' • List truncated to the response limit'
+                    : ''}
+                </p>
+              )}
 
               <div className="space-y-3">
                 {events.map((event) => {

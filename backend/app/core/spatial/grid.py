@@ -1,0 +1,140 @@
+"""H3 spatial grid assignment and geometry conversion using H3 v4."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import h3
+import numpy as np
+import pandas as pd
+
+from app.shared.config_loader import get_harmonization_config
+
+
+def get_default_resolution() -> int:
+    """Read h3_resolution from harmonization.yaml, defaulting to 6."""
+    return int(get_harmonization_config().get("h3_resolution", 6))
+
+
+def assign_h3_cells(
+    df: pd.DataFrame,
+    resolution: int | None = None,
+) -> pd.DataFrame:
+    """Assigns H3 cell ids to lat/lon pairs using unique mapping for performance.
+
+    Missing/invalid coordinates are mapped to None (object dtype).
+    """
+    out = df.copy()
+    if df.empty or "lat" not in df.columns or "lon" not in df.columns:
+        out["h3_cell"] = None
+        return out
+
+    res = resolution if resolution is not None else get_default_resolution()
+
+    # Mask valid coordinates
+    valid_mask = out["lat"].notna() & out["lon"].notna()
+
+    # Initialize column with None
+    out["h3_cell"] = None
+
+    if valid_mask.any():
+        unique_coords = out.loc[valid_mask, ["lat", "lon"]].drop_duplicates()
+        if len(unique_coords) < 1_000_000:
+            coord_map = {}
+            for row in unique_coords.itertuples(index=False):
+                try:
+                    coord_map[(row.lat, row.lon)] = h3.latlng_to_cell(
+                        float(row.lat), float(row.lon), res
+                    )
+                except Exception:
+                    continue
+            out.loc[valid_mask, "h3_cell"] = [
+                coord_map.get((la, lo))
+                for la, lo in zip(out.loc[valid_mask, "lat"], out.loc[valid_mask, "lon"])
+            ]
+        else:
+            # Memory-efficient direct calculation for large datasets (>1M points)
+            lats = out.loc[valid_mask, "lat"].to_numpy(dtype=float)
+            lons = out.loc[valid_mask, "lon"].to_numpy(dtype=float)
+            out.loc[valid_mask, "h3_cell"] = [
+                h3.latlng_to_cell(la, lo, res) for la, lo in zip(lats, lons)
+            ]
+
+    # Explicitly ensure invalid/NaN rows remain Python None (object dtype)
+    out["h3_cell"] = out["h3_cell"].where(out["h3_cell"].notna(), None)
+
+    return out
+
+
+def bbox_to_cells(
+    bbox: list[float] | tuple[float, float, float, float] | Any,
+    resolution: int | None = None,
+) -> set[str]:
+    """Convert a bounding box [min_lon, min_lat, max_lon, max_lat] to a set of H3 cells.
+
+    Uses H3 v4 LatLngPoly with vertices:
+      (min_lat, min_lon), (min_lat, max_lon), (max_lat, max_lon), (max_lat, min_lon)
+    """
+    res = resolution if resolution is not None else get_default_resolution()
+
+    if hasattr(bbox, "as_list"):
+        min_lon, min_lat, max_lon, max_lat = bbox.as_list()
+    elif hasattr(bbox, "min_lon"):
+        min_lon, min_lat, max_lon, max_lat = bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat
+    else:
+        min_lon, min_lat, max_lon, max_lat = bbox
+
+    # H3 v4 LatLngPoly takes lat, lng pairs
+    poly = h3.LatLngPoly([
+        (float(min_lat), float(min_lon)),
+        (float(min_lat), float(max_lon)),
+        (float(max_lat), float(max_lon)),
+        (float(max_lat), float(min_lon)),
+    ])
+    cells = set(h3.polygon_to_cells(poly, res))
+    if not cells:
+        # For small bounding boxes smaller than a single H3 cell,
+        # assign the cell containing the centroid so small drawn areas are never dropped.
+        center_lat = (float(min_lat) + float(max_lat)) / 2.0
+        center_lon = (float(min_lon) + float(max_lon)) / 2.0
+        try:
+            cells = {h3.latlng_to_cell(center_lat, center_lon, res)}
+        except Exception:
+            pass
+    return cells
+
+
+def polygon_to_cells(
+    geojson_polygon: dict[str, Any] | Any,
+    resolution: int | None = None,
+) -> set[str]:
+    """Convert a GeoJSON Polygon dictionary or H3 shape to a set of H3 cells using H3 v4."""
+    res = resolution if resolution is not None else get_default_resolution()
+
+    cells: set[str] = set()
+    if isinstance(geojson_polygon, dict):
+        shape = h3.geo_to_h3shape(geojson_polygon)
+        cells = set(h3.polygon_to_cells(shape, res))
+    elif isinstance(geojson_polygon, (h3.LatLngPoly, h3.LatLngMultiPoly)):
+        cells = set(h3.polygon_to_cells(geojson_polygon, res))
+    elif hasattr(geojson_polygon, "__geo_interface__"):
+        shape = h3.geo_to_h3shape(geojson_polygon.__geo_interface__)
+        cells = set(h3.polygon_to_cells(shape, res))
+    else:
+        raise ValueError(f"Unsupported geometry type: {type(geojson_polygon)}")
+
+    if not cells and isinstance(geojson_polygon, dict):
+        try:
+            coords = geojson_polygon.get("coordinates", [])
+            if geojson_polygon.get("type") == "Feature":
+                coords = geojson_polygon.get("geometry", {}).get("coordinates", [])
+            while coords and isinstance(coords[0], (list, tuple)) and not isinstance(coords[0][0], (int, float)):
+                coords = coords[0]
+            if coords and len(coords) >= 1 and isinstance(coords[0], (list, tuple)) and len(coords[0]) >= 2:
+                lon, lat = float(coords[0][0]), float(coords[0][1])
+                cells = {h3.latlng_to_cell(lat, lon, res)}
+        except Exception:
+            pass
+
+    return cells
+

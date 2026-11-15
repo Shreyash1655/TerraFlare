@@ -13,6 +13,12 @@ def advanced_health(repo: RepoDep):
     return {"status": "ok", "data_mode": repo.mode, "data_version": repo.data_version,
             "is_synthetic": repo.is_synthetic, "features_enabled": list(settings.enabled_features)}
 
+@api_router.get("/history-status", tags=["Health"])
+def history_status(repo: RepoDep):
+    from app.services.history_service import build_history_status
+    from app.utils.response import make_envelope
+    source = getattr(repo, "obs_source", None) or ("synthetic fixture" if repo.is_synthetic else "real")
+    return make_envelope(repo, build_history_status(repo._table("obs_clean"), source, repo.is_synthetic))
 
 def _on(name: str) -> bool:
     return name in settings.enabled_features
@@ -36,3 +42,7 @@ if _on("exposure"):
 if _on("quality"):
     from app.api.routes import quality
     api_router.include_router(quality.router, prefix="/quality")
+from app.api.routes import firms_nrt
+api_router.include_router(firms_nrt.router)  # router already has prefix="/firms"
+from app.api.routes import short_window
+api_router.include_router(short_window.router, prefix="/short-window")

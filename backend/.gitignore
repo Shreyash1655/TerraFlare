@@ -7,3 +7,4 @@ __pycache__/
 htmlcov/
 app/data/processed/*
 !app/data/processed/.gitkeep
+.env

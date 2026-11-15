@@ -67,8 +67,8 @@ def test_exposure():
 
 def test_quality_detects_planted_viirs_gap():
     d = get("/quality", start="2022-01-01", end="2022-12-31")
-    gaps = [g for g in d["availability"] if g["sensor_family"] == "VIIRS"]
-    assert any(g["gap_start"] <= "2022-06-24" and g["gap_end"] >= "2022-06-24" for g in gaps)
+        # Gaps are never inferred from missing detections; coverage comes from /harmonization/coverage.
+    assert d["availability"] == []
     assert d["confidence_distribution"] and d["confidence_normalised"]
     p = get("/quality/provenance")
     assert len(p["sources"]) == 2

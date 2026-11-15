@@ -1,7 +1,12 @@
-
 import { useEffect, useState } from 'react';
-import { getExposure } from '../../../api/advanced';
+import { getExposure, getHistoryStatus } from '../../../api/advanced';
 import type { ExposureData, ExposureLayerResult } from '../../../api/types/advanced';
+import ScopeControls, {
+  INDIA_BBOX,
+  isCapError,
+  scopeToParams,
+  type Scope,
+} from '../shared/ScopeControls';
 
 type BufferOption = 1 | 5 | 10;
 
@@ -112,28 +117,62 @@ export default function ExposurePage() {
   const [selectedBuffer, setSelectedBuffer] =
     useState<BufferOption>(5);
 
+  const [scope, setScope] = useState<Scope | null>(null);
+  const [bounds, setBounds] = useState<{
+    min: string | null;
+    max: string | null;
+  }>({ min: null, max: null });
+
   const [exposure, setExposure] = useState<ExposureData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [dataMode, setDataMode] =
-    useState<'fixture' | 'real' | null>(null);
+  const [dataMode, setDataMode] = useState<string | null>(null);
 
   const [isSynthetic, setIsSynthetic] =
     useState<boolean | null>(null);
 
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Fetch exposure data whenever the selected buffer changes.
+  // Default scope: latest loaded day, VIIRS, India box (editable).
   useEffect(() => {
+    let active = true;
+
+    getHistoryStatus()
+      .then((r) => {
+        if (!active) return;
+        const [first, last] = r.data.date_range;
+        setBounds({ min: first, max: last });
+        setScope({
+          bbox: INDIA_BBOX,
+          start: last ?? '',
+          end: last ?? '',
+          sensor: 'viirs',
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setScope({ bbox: INDIA_BBOX, start: '', end: '', sensor: 'viirs' });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Fetch exposure data whenever the buffer or scope changes.
+  useEffect(() => {
+    if (!scope) return;
+
     let cancelled = false;
 
-    async function loadExposure() {
+    async function loadExposure(current: Scope) {
       try {
         setLoading(true);
         setError(null);
 
         const response = await getExposure({
+          ...scopeToParams(current),
           buffer_km: selectedBuffer,
         });
 
@@ -145,6 +184,7 @@ export default function ExposurePage() {
       } catch (err) {
         if (cancelled) return;
 
+        setExposure(null);
         setError(
           err instanceof Error
             ? err.message
@@ -157,12 +197,12 @@ export default function ExposurePage() {
       }
     }
 
-    loadExposure();
+    loadExposure(scope);
 
     return () => {
       cancelled = true;
     };
-  }, [selectedBuffer, reloadKey]);
+  }, [selectedBuffer, scope, reloadKey]);
 
   const layers = exposure?.layers ?? [];
 
@@ -258,6 +298,16 @@ export default function ExposurePage() {
       {/* Main Container */}
       <div className="w-full px-6 py-6 space-y-6">
 
+        {scope && (
+          <ScopeControls
+            scope={scope}
+            minDate={bounds.min}
+            maxDate={bounds.max}
+            disabled={loading}
+            onApply={setScope}
+          />
+        )}
+
         {/* Loading */}
         {loading && (
           <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-10 text-center">
@@ -271,16 +321,26 @@ export default function ExposurePage() {
           </div>
         )}
 
-        {/* Error */}
+        {/* Limit / error */}
         {!loading && error && (
           <div className="bg-[#1c1f2a] border border-[#ff938c]/40 rounded-lg p-6">
             <p className="font-caption-mono text-sm font-bold text-[#ff938c]">
-              EXPOSURE API ERROR
+              {isCapError(error)
+                ? 'TOO MANY HOTSPOT LOCATIONS FOR THIS SELECTION'
+                : 'EXPOSURE API ERROR'}
             </p>
 
             <p className="text-sm text-[#d8c3ad] mt-2">
               {error}
             </p>
+
+            {isCapError(error) && (
+              <p className="text-xs text-[#a08e7a] mt-2">
+                Exposure is capped to protect the server. Shrink the bounding
+                box or choose a single day, then press Apply. No data was
+                sampled or dropped.
+              </p>
+            )}
 
             <button
               type="button"
@@ -295,6 +355,24 @@ export default function ExposurePage() {
         {/* Results */}
         {!loading && !error && exposure && (
           <>
+            {/* Hotspot locations */}
+            <div className="p-4 rounded bg-[#1c1f2a] border border-[#262a35] flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span className="font-caption-mono text-[10px] text-[#a08e7a] block">
+                  HOTSPOT LOCATIONS (ROUNDED TO ~1 KM)
+                </span>
+                <span className="font-mono text-2xl font-bold text-[#ffc174]">
+                  {formatNumber(exposure.n_hotspot_locations)}
+                </span>
+              </div>
+
+              {exposure.period && (
+                <span className="font-caption-mono text-xs text-[#7bd0ff]">
+                  {exposure.period.start} to {exposure.period.end}
+                </span>
+              )}
+            </div>
+
             {/* Exposure Summary Cards */}
             <div>
               <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
@@ -357,90 +435,103 @@ export default function ExposurePage() {
               </div>
 
               {layers.length === 0 && (
-                <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-8 text-center text-[#a08e7a] font-caption-mono text-xs">
-                  No exposure layers were returned for this buffer.
+                <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-8 text-center">
+                  <p className="text-[#dfe2f1] font-semibold text-sm">
+                    No external asset layers installed
+                  </p>
+                  <p className="text-[#a08e7a] font-caption-mono text-xs mt-2">
+                    Exposure of settlements, population, roads and protected
+                    areas cannot be computed. This is NOT zero exposure.
+                  </p>
+                  {exposure.notes?.[0] && (
+                    <p className="text-[#a08e7a] font-caption-mono text-[11px] mt-2">
+                      {exposure.notes[0]}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Provenance Table */}
-            <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
-              <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
-                <div>
-                  <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
-                    Asset Layers &amp; Provenance Specifications
-                  </h3>
+            {layers.length > 0 && (
+              <div className="bg-[#1c1f2a] border border-[#262a35] rounded-lg p-5 shadow-md">
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                  <div>
+                    <h3 className="font-title-sm text-sm font-bold text-[#dfe2f1]">
+                      Asset Layers &amp; Provenance Specifications
+                    </h3>
 
-                  <span className="font-caption-mono text-xs text-[#a08e7a]">
-                    Dataset sources and values returned by the backend
+                    <span className="font-caption-mono text-xs text-[#a08e7a]">
+                      Dataset sources and values returned by the backend
+                    </span>
+                  </div>
+
+                  <span className="px-2 py-1 rounded bg-[#0a0e18] text-[#7bd0ff] font-caption-mono text-xs">
+                    {layers.length} LAYERS
                   </span>
                 </div>
 
-                <span className="px-2 py-1 rounded bg-[#0a0e18] text-[#7bd0ff] font-caption-mono text-xs">
-                  {layers.length} LAYERS
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left font-caption-mono text-xs">
-                  <thead>
-                    <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase border-b border-[#262a35]">
-                      <th className="py-2.5 px-3">Asset Layer</th>
-                      <th className="py-2.5 px-3">Data Provider</th>
-                      <th className="py-2.5 px-3">Version</th>
-                      <th className="py-2.5 px-3 text-right">Count</th>
-                      <th className="py-2.5 px-3 text-right">Sum Value</th>
-                      <th className="py-2.5 px-3 text-center">Status</th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-[#262a35]">
-                    {layers.map((layer) => (
-                      <tr
-                        key={layer.layer_id}
-                        className="bg-[#171b26] hover:bg-[#262a35]/60 transition-colors"
-                      >
-                        <td className="py-3 px-3 font-bold text-[#dfe2f1]">
-                          {getLayerName(layer)}
-                        </td>
-
-                        <td className="py-3 px-3 text-[#d8c3ad]">
-                          {layer.source || 'N/A'}
-                        </td>
-
-                        <td className="py-3 px-3 font-mono text-[#7bd0ff]">
-                          {layer.version || 'N/A'}
-                        </td>
-
-                        <td className="py-3 px-3 text-right font-mono">
-                          {formatNumber(layer.count)}
-                        </td>
-
-                        <td className="py-3 px-3 text-right font-mono text-[#ffc174]">
-                          {formatNumber(layer.sum_value)}
-                        </td>
-
-                        <td className="py-3 px-3 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              layer.available
-                                ? 'bg-[#10B981]/20 text-[#10B981]'
-                                : 'bg-[#ff938c]/20 text-[#ff938c]'
-                            }`}
-                          >
-                            {layer.available ? 'AVAILABLE' : 'UNAVAILABLE'}
-                          </span>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left font-caption-mono text-xs">
+                    <thead>
+                      <tr className="bg-[#0a0e18] text-[#a08e7a] uppercase border-b border-[#262a35]">
+                        <th className="py-2.5 px-3">Asset Layer</th>
+                        <th className="py-2.5 px-3">Data Provider</th>
+                        <th className="py-2.5 px-3">Version</th>
+                        <th className="py-2.5 px-3 text-right">Count</th>
+                        <th className="py-2.5 px-3 text-right">Sum Value</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
 
-              <div className="mt-4 pt-3 border-t border-[#262a35] font-caption-mono text-[11px] text-[#a08e7a]">
-                Selected buffer: {exposure.buffer_km} km
+                    <tbody className="divide-y divide-[#262a35]">
+                      {layers.map((layer) => (
+                        <tr
+                          key={layer.layer_id}
+                          className="bg-[#171b26] hover:bg-[#262a35]/60 transition-colors"
+                        >
+                          <td className="py-3 px-3 font-bold text-[#dfe2f1]">
+                            {getLayerName(layer)}
+                          </td>
+
+                          <td className="py-3 px-3 text-[#d8c3ad]">
+                            {layer.source || 'N/A'}
+                          </td>
+
+                          <td className="py-3 px-3 font-mono text-[#7bd0ff]">
+                            {layer.version || 'N/A'}
+                          </td>
+
+                          <td className="py-3 px-3 text-right font-mono">
+                            {formatNumber(layer.count)}
+                          </td>
+
+                          <td className="py-3 px-3 text-right font-mono text-[#ffc174]">
+                            {formatNumber(layer.sum_value)}
+                          </td>
+
+                          <td className="py-3 px-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                layer.available
+                                  ? 'bg-[#10B981]/20 text-[#10B981]'
+                                  : 'bg-[#ff938c]/20 text-[#ff938c]'
+                              }`}
+                            >
+                              {layer.available ? 'AVAILABLE' : 'UNAVAILABLE'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-[#262a35] font-caption-mono text-[11px] text-[#a08e7a]">
+                  Selected buffer: {exposure.buffer_km} km
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Backend Note */}
             {exposure.note && (

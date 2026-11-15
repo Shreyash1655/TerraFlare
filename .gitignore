@@ -1,0 +1,33 @@
+# data and backups (large; never commit)
+/data/
+/data_*/
+/proc_bak_*/
+/backend/data/
+/backend/app/data/processed/*
+!/backend/app/data/processed/.gitkeep
+*.duckdb
+*.duckdb.*
+*.stale-15-11
+*.parquet
+*.shp
+*.dbf
+*.shx
+*.cpg
+*.prj
+
+# env, caches, deps
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+dist/
+.vite/
+
+# local backups and scratch
+*.bak

@@ -15,7 +15,7 @@ const API_BASE_URL = (
 
 export default function ExportButton({
   dataset,
-  regionId = 'pwn',
+  regionId = 'global',
   startDate = '2020-01-01',
   endDate = '2025-12-31',
   className = '',

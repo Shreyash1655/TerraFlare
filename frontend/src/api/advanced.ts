@@ -82,9 +82,10 @@ export async function getAnomalies(params?: {
   });
 }
 
-export async function getAnomalyExplain(params?: {
+export async function getAnomalyExplain(params: {
   region_id?: string;
-  period_start?: string;
+  start: string;
+  end: string;
 }): Promise<ApiResponse<AnomalyExplainData>> {
   return request<AnomalyExplainData>({
     url: '/advanced/anomalies/explain',
@@ -97,11 +98,17 @@ export async function getAnomalyExplain(params?: {
 // EVENTS
 // --------------------------------------------------
 
-export async function getEvents(params?: {
+export interface ScopeParams {
   region_id?: string;
   start?: string;
   end?: string;
-}): Promise<ApiResponse<EventsData>> {
+  bbox?: string;
+  sensor?: 'viirs' | 'modis';
+}
+
+export async function getEvents(
+  params?: ScopeParams
+): Promise<ApiResponse<EventsData>> {
   return request<EventsData>({
     url: '/advanced/events',
     method: 'GET',
@@ -110,22 +117,19 @@ export async function getEvents(params?: {
 }
 
 export async function getEventDetail(
-  event_id: string
+  event_id: string,
+  params?: ScopeParams
 ): Promise<ApiResponse<EventDetailData>> {
   return request<EventDetailData>({
     url: `/advanced/events/${encodeURIComponent(event_id)}`,
     method: 'GET',
+    params,
   });
 }
 
-// --------------------------------------------------
-// EXPOSURE
-// --------------------------------------------------
-
-export async function getExposure(params?: {
-  region_id?: string;
-  buffer_km?: number;
-}): Promise<ApiResponse<ExposureData>> {
+export async function getExposure(
+  params?: ScopeParams & { buffer_km?: number }
+): Promise<ApiResponse<ExposureData>> {
   return request<ExposureData>({
     url: '/advanced/exposure',
     method: 'GET',
@@ -152,5 +156,75 @@ export async function getProvenance(): Promise<ApiResponse<ProvenanceData>> {
   return request<ProvenanceData>({
     url: '/advanced/quality/provenance',
     method: 'GET',
+  });
+}
+export interface HistoryModuleStatus {
+  required_years: number;
+  sufficient: boolean;
+  message: string | null;
+}
+export interface HistoryStatusData {
+  source: string;
+  is_synthetic: boolean;
+  available_days: number;
+  span_days: number;
+  date_range: [string | null, string | null];
+  modules: Record<string, HistoryModuleStatus>;
+}
+
+export async function getHistoryStatus(): Promise<ApiResponse<HistoryStatusData>> {
+  return request<HistoryStatusData>({ url: '/advanced/history-status', method: 'GET' });
+}
+export interface ShortWindowDay {
+  date: string;
+  count: number;
+  robust_z: number | null;
+  flagged: boolean;
+}
+export interface ShortWindowAnomalyData {
+  method: string;
+  sensor: string;
+  window: [string, string];
+  usable_days: number;
+  min_days: number;
+  warnings: string[];
+  days: ShortWindowDay[];
+}
+export interface ShortWindowCell {
+  h3_cell: string;
+  days_active: number;
+  days_covered: number;
+  share: number | null;
+  detections: number;
+}
+export interface ShortWindowPersistenceData {
+  method: string;
+  sensor: string;
+  covered_days: number;
+  min_days: number;
+  warnings: string[];
+  n_cells: number;
+  cells_full: number;
+  cells: ShortWindowCell[];
+}
+
+export async function getShortWindowAnomalies(
+  sensor: 'viirs' | 'modis'
+): Promise<ApiResponse<ShortWindowAnomalyData>> {
+  return request<ShortWindowAnomalyData>({
+    url: '/advanced/short-window/anomalies',
+    method: 'GET',
+    params: { sensor },
+  });
+}
+
+export async function getShortWindowPersistence(
+  sensor: 'viirs' | 'modis',
+  limit = 100
+): Promise<ApiResponse<ShortWindowPersistenceData>> {
+  return request<ShortWindowPersistenceData>({
+    url: '/advanced/short-window/persistence',
+    method: 'GET',
+    params: { sensor, limit },
   });
 }

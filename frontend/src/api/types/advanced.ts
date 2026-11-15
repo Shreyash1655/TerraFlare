@@ -158,6 +158,10 @@ export interface EventEpisode {
 export interface EventsData {
   events: EventEpisode[];
   label: string;
+  n_points_processed?: number;
+  n_noise_points?: number;
+  truncated?: boolean;
+  notes?: string[];
 }
 
 export interface EventDetailData {
@@ -194,6 +198,9 @@ export interface ExposureData {
   buffer_km: number;
   layers: ExposureLayerResult[];
   note: string;
+  period?: { start: string; end: string };
+  n_hotspot_locations?: number;
+  notes?: string[];
 }
 
 // --------------------------------------------------

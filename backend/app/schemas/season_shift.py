@@ -18,6 +18,7 @@ class SeasonYear(BaseModel):
     total_activity: float
     sensor_mix: list[str] = Field(default_factory=list)
     is_partial: bool = False
+    missing_days: int | None = None
     status: Literal["ok", "partial", "insufficient_activity"]
 
 
